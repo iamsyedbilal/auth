@@ -4,24 +4,42 @@ const authSchema = new mongoose.Schema(
   {
     username: {
       type: String,
-      trim: true,
       required: [true, "Username is required"],
-      unique: [true, "Username must be unique"],
+      unique: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 30,
+      lowercase: true,
     },
     email: {
       type: String,
       required: [true, "Email is required"],
-      unique: [true, "Email must be unique"],
+      unique: true,
+      trim: true,
+      lowercase: true,
+      maxlength: 254,
       validate: {
-        validator: function (v) {
-          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+        validator: function (value) {
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
         },
-        message: "Email must be a valid email address",
+        message: "Please provide a valid email address",
       },
     },
     password: {
       type: String,
       required: [true, "Password is required"],
+      minlength: 8,
+      select: false,
+    },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+      index: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   { timestamps: true },

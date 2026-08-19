@@ -1,28 +1,31 @@
 const express = require("express");
+
 const {
-  signin,
   signup,
+  signin,
   signout,
   getUser,
   refreshToken,
 } = require("../controllers/auth.controller");
+
 const auth = require("../middlewares/auth.middleware");
+
+const {
+  authRateLimiter,
+  signupRateLimiter,
+  refreshRateLimiter,
+} = require("../middlewares/rate-limit.middleware");
 
 const authRouter = express.Router();
 
-// Signup route
-authRouter.post("/signup", signup);
+authRouter.post("/signup", signupRateLimiter, signup);
 
-// Signin route
-authRouter.post("/signin", signin);
+authRouter.post("/signin", authRateLimiter, signin);
 
-// Signout route
 authRouter.post("/signout", signout);
 
-// Get User route
-authRouter.get("/me", auth, getUser);
+authRouter.post("/refreshToken", refreshRateLimiter, refreshToken);
 
-// Refresh Token
-authRouter.post("/refreshToken", refreshToken);
+authRouter.get("/me", auth, getUser);
 
 module.exports = authRouter;
