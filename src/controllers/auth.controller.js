@@ -215,7 +215,7 @@ async function signout(req, res) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      path: "/api/auth/refresh",
+      path: "/api/auth/refreshToken",
     });
 
     return res.status(200).json({
