@@ -31,6 +31,11 @@ const authSchema = new mongoose.Schema(
       minlength: 8,
       select: false,
     },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     role: {
       type: String,
       enum: ["user", "admin"],

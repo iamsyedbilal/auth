@@ -1,13 +1,19 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const generateOTP = require("../utils/otp");
+const sendVerificationEmail = require("../services/email.service");
 
 const Auth = require("../models/auth.model");
 const Session = require("../models/session.model");
+const EmailVerification = require("../models/email-verification.model");
 
 const ACCESS_TOKEN_EXPIRES_IN = "15m";
 const REFRESH_TOKEN_EXPIRES_IN = "7d";
 const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const OTP_EXPIRES_IN = 10 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_RESEND_COOLDOWN = 60 * 1000;
 
 function setRefreshTokenCookie(res, refreshToken) {
   res.cookie("refreshToken", refreshToken, {
@@ -116,36 +122,26 @@ async function signup(req, res) {
       username: normalizedUsername,
       email: normalizedEmail,
       password: hashedPassword,
+      emailVerified: false,
     });
 
-    const sessionId = crypto.randomUUID();
+    const otp = generateOTP();
 
-    const refreshToken = createRefreshToken(user._id, sessionId);
+    const otpHash = await bcrypt.hash(otp, 10);
 
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 12);
-
-    await Session.create({
+    await EmailVerification.create({
       user: user._id,
-      sessionId,
-      refreshTokenHash,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      expiresAt: getSessionExpirationDate(),
+      otpHash,
+      expiresAt: new Date(Date.now() + OTP_EXPIRES_IN),
+      attempts: 0,
+      lastSentAt: new Date(),
     });
 
-    const accessToken = createAccessToken(user);
-
-    setRefreshTokenCookie(res, refreshToken);
+    await sendVerificationEmail(user.email, user.username, otp);
 
     return res.status(201).json({
-      message: "User created successfully",
-      accessToken,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-      },
+      message: "Account created successfully. Please verify your email.",
+      email: user.email,
     });
   } catch (error) {
     console.error("Signup error:", error);
@@ -184,6 +180,13 @@ async function signin(req, res) {
     if (!user.isActive) {
       return res.status(403).json({
         message: "Account is disabled",
+      });
+    }
+
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        message: "Please verify your email before signing in",
+        emailVerified: false,
       });
     }
 
@@ -452,11 +455,191 @@ async function refreshToken(req, res) {
   }
 }
 
+/**
+ * POST /api/auth/verify-email
+ */
+async function verifyEmail(req, res) {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        message: "Email and OTP are required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json({
+        message: "OTP must be 6 digits",
+      });
+    }
+
+    const user = await Auth.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid verification request",
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({
+        message: "Email is already verified",
+      });
+    }
+
+    const verification = await EmailVerification.findOne({
+      user: user._id,
+    });
+
+    if (!verification) {
+      return res.status(400).json({
+        message: "Verification code has expired",
+      });
+    }
+
+    if (verification.expiresAt < new Date()) {
+      await EmailVerification.deleteOne({
+        _id: verification._id,
+      });
+
+      return res.status(400).json({
+        message: "Verification code has expired",
+      });
+    }
+
+    if (verification.attempts >= OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({
+        message: "Too many incorrect attempts. Please request a new code.",
+      });
+    }
+
+    const isValidOTP = await bcrypt.compare(otp, verification.otpHash);
+
+    if (!isValidOTP) {
+      verification.attempts += 1;
+
+      await verification.save();
+
+      return res.status(400).json({
+        message: "Invalid verification code",
+        attemptsRemaining: OTP_MAX_ATTEMPTS - verification.attempts,
+      });
+    }
+
+    user.emailVerified = true;
+
+    await user.save();
+
+    await EmailVerification.deleteOne({
+      _id: verification._id,
+    });
+
+    return res.status(200).json({
+      message: "Email verified successfully",
+    });
+  } catch (error) {
+    console.error("Email verification error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+/**
+ * POST /api/auth/resend-verification
+ */
+async function resendVerification(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await Auth.findOne({
+      email: normalizedEmail,
+    });
+
+    /*
+     * Don't reveal whether the email exists.
+     */
+    if (!user) {
+      return res.status(200).json({
+        message: "If the account exists, a verification code has been sent.",
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.status(400).json({
+        message: "Email is already verified",
+      });
+    }
+
+    const existingVerification = await EmailVerification.findOne({
+      user: user._id,
+    });
+
+    if (
+      existingVerification?.lastSentAt &&
+      Date.now() - existingVerification.lastSentAt.getTime() <
+        OTP_RESEND_COOLDOWN
+    ) {
+      return res.status(429).json({
+        message: "Please wait before requesting another code.",
+      });
+    }
+
+    const otp = generateOTP();
+
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    await EmailVerification.findOneAndUpdate(
+      {
+        user: user._id,
+      },
+      {
+        otpHash,
+        expiresAt: new Date(Date.now() + OTP_EXPIRES_IN),
+        attempts: 0,
+        lastSentAt: new Date(),
+      },
+      {
+        upsert: true,
+        new: true,
+      },
+    );
+
+    await sendVerificationEmail(user.email, user.username, otp);
+
+    return res.status(200).json({
+      message: "If the account exists, a verification code has been sent.",
+    });
+  } catch (error) {
+    console.error("Email resend verification error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
 module.exports = {
   signup,
+  verifyEmail,
   signin,
   signout,
   getUser,
   refreshToken,
   signoutAll,
+  resendVerification,
 };

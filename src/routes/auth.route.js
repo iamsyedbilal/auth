@@ -7,6 +7,8 @@ const {
   getUser,
   refreshToken,
   signoutAll,
+  verifyEmail,
+  resendVerification,
 } = require("../controllers/auth.controller");
 
 const auth = require("../middlewares/auth.middleware");
@@ -20,6 +22,10 @@ const {
 const authRouter = express.Router();
 
 authRouter.post("/signup", signupRateLimiter, signup);
+
+authRouter.post("/verify-email", authRateLimiter, verifyEmail);
+
+authRouter.post("/resend-verification", authRateLimiter, resendVerification);
 
 authRouter.post("/signin", authRateLimiter, signin);
 
