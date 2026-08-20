@@ -6,6 +6,7 @@ const {
   signout,
   getUser,
   refreshToken,
+  signoutAll,
 } = require("../controllers/auth.controller");
 
 const auth = require("../middlewares/auth.middleware");
@@ -23,6 +24,8 @@ authRouter.post("/signup", signupRateLimiter, signup);
 authRouter.post("/signin", authRateLimiter, signin);
 
 authRouter.post("/signout", signout);
+
+authRouter.post("/signout-all", auth, signoutAll);
 
 authRouter.post("/refreshToken", refreshRateLimiter, refreshToken);
 

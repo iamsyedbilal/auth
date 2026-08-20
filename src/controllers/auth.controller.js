@@ -278,6 +278,35 @@ async function signout(req, res) {
 }
 
 /**
+ * POST /api/auth/signoutAll
+ */
+async function signoutAll(req, res) {
+  try {
+    await Session.updateMany(
+      {
+        user: req.user.id,
+        revokedAt: null,
+      },
+      {
+        revokedAt: new Date(),
+      },
+    );
+
+    clearRefreshTokenCookie(res);
+
+    return res.status(200).json({
+      message: "Logged out from all devices successfully",
+    });
+  } catch (error) {
+    console.error("Signout all error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+/**
  * GET /api/auth/me
  */
 async function getUser(req, res) {
@@ -429,4 +458,5 @@ module.exports = {
   signout,
   getUser,
   refreshToken,
+  signoutAll,
 };
