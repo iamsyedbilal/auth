@@ -9,6 +9,8 @@ const {
   signoutAll,
   verifyEmail,
   resendVerification,
+  getSessions,
+  revokeSession,
 } = require("../controllers/auth.controller");
 
 const auth = require("../middlewares/auth.middleware");
@@ -26,6 +28,10 @@ authRouter.post("/signup", signupRateLimiter, signup);
 authRouter.post("/verify-email", authRateLimiter, verifyEmail);
 
 authRouter.post("/resend-verification", authRateLimiter, resendVerification);
+
+authRouter.get("/sessions", auth, getSessions);
+
+authRouter.delete("/sessions/:sessionId", auth, revokeSession);
 
 authRouter.post("/signin", authRateLimiter, signin);
 

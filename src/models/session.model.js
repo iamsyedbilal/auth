@@ -27,6 +27,11 @@ const sessionSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    lastUsedAt: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
     revokedAt: {
       type: Date,
       default: null,

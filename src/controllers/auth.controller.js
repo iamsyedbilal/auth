@@ -210,6 +210,7 @@ async function signin(req, res) {
       refreshTokenHash,
       ip: req.ip,
       userAgent: req.get("user-agent"),
+      lastUsedAt: new Date(),
       expiresAt: getSessionExpirationDate(),
     });
 
@@ -354,10 +355,17 @@ async function refreshToken(req, res) {
       });
     }
 
-    const decoded = jwt.verify(
-      oldRefreshToken,
-      process.env.REFRESH_TOKEN_SECRET,
-    );
+    let decoded;
+
+    try {
+      decoded = jwt.verify(oldRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (error) {
+      clearRefreshTokenCookie(res);
+
+      return res.status(401).json({
+        message: "Invalid or expired refresh token",
+      });
+    }
 
     const session = await Session.findOne({
       sessionId: decoded.sessionId,
@@ -372,15 +380,39 @@ async function refreshToken(req, res) {
       });
     }
 
+    /*
+     * A revoked session means its refresh token has already
+     * been rotated or explicitly revoked.
+     *
+     * If somebody presents that old token again, treat it as
+     * refresh-token reuse.
+     */
+
     if (session.revokedAt) {
+      await Session.updateMany(
+        {
+          user: session.user,
+          revokedAt: null,
+        },
+        {
+          $set: {
+            revokedAt: new Date(),
+          },
+        },
+      );
+
       clearRefreshTokenCookie(res);
 
       return res.status(401).json({
-        message: "Session has been revoked",
+        message: "Refresh token reuse detected",
       });
     }
 
-    if (session.expiresAt < new Date()) {
+    if (session.expiresAt <= new Date()) {
+      session.revokedAt = new Date();
+
+      await session.save();
+
       clearRefreshTokenCookie(res);
 
       return res.status(401).json({
@@ -388,19 +420,38 @@ async function refreshToken(req, res) {
       });
     }
 
+    /*
+     * Check that the refresh token presented by the client
+     * matches the hash stored for this session.
+     */
     const tokenMatches = await bcrypt.compare(
       oldRefreshToken,
       session.refreshTokenHash,
     );
 
     if (!tokenMatches) {
-      session.revokedAt = new Date();
-      await session.save();
+      /*
+       * This token does not belong to the current rotation.
+       *
+       * Treat it as suspicious and revoke the user's active
+       * sessions.
+       */
+      await Session.updateMany(
+        {
+          user: session.user,
+          revokedAt: null,
+        },
+        {
+          $set: {
+            revokedAt: new Date(),
+          },
+        },
+      );
 
       clearRefreshTokenCookie(res);
 
       return res.status(401).json({
-        message: "Invalid refresh token",
+        message: "Refresh token reuse detected",
       });
     }
 
@@ -417,24 +468,68 @@ async function refreshToken(req, res) {
       });
     }
 
-    // Rotate refresh token.
-    session.revokedAt = new Date();
-    await session.save();
+    /*
+     * Generate the new refresh token using the SAME sessionId.
+     *
+     * This is the important change:
+     *
+     * Old:
+     * session A → revoked
+     * session B → created
+     *
+     * New:
+     * session A → refresh hash replaced
+     */
 
-    const newSessionId = crypto.randomUUID();
-
-    const newRefreshToken = createRefreshToken(user._id, newSessionId);
+    const newRefreshToken = createRefreshToken(user._id, session.sessionId);
 
     const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 12);
+    /*
+     * Atomic update.
+     *
+     * We include the old hash in the query so two simultaneous
+     * refresh requests cannot both successfully rotate the token.
+     */
+    const updatedSession = await Session.findOneAndUpdate(
+      {
+        _id: session._id,
+        refreshTokenHash: session.refreshTokenHash,
+        revokedAt: null,
+      },
+      {
+        $set: {
+          refreshTokenHash: newRefreshTokenHash,
+          lastUsedAt: new Date(),
+        },
+      },
+      {
+        new: true,
+      },
+    );
 
-    await Session.create({
-      user: user._id,
-      sessionId: newSessionId,
-      refreshTokenHash: newRefreshTokenHash,
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      expiresAt: getSessionExpirationDate(),
-    });
+    /*
+     * If no document was updated, another request already
+     * rotated this token.
+     */
+    if (!updatedSession) {
+      await Session.updateMany(
+        {
+          user: session.user,
+          revokedAt: null,
+        },
+        {
+          $set: {
+            revokedAt: new Date(),
+          },
+        },
+      );
+
+      clearRefreshTokenCookie(res);
+
+      return res.status(401).json({
+        message: "Refresh token reuse detected",
+      });
+    }
 
     const accessToken = createAccessToken(user);
 
@@ -633,6 +728,126 @@ async function resendVerification(req, res) {
   }
 }
 
+/**
+ * GET /api/auth/sessions
+ */
+async function getSessions(req, res) {
+  try {
+    const sessions = await Session.find({
+      user: req.user.id,
+      revokedAt: null,
+      expiresAt: {
+        $gt: new Date(),
+      },
+    })
+      .select("sessionId ip userAgent createdAt lastUsedAt expiresAt")
+      .sort({
+        lastUsedAt: -1,
+      })
+      .lean();
+
+    const currentRefreshToken = req.cookies.refreshToken;
+
+    let currentSessionId = null;
+
+    /*
+     * Identify the current browser/device session.
+     */
+    if (currentRefreshToken) {
+      try {
+        const decoded = jwt.verify(
+          currentRefreshToken,
+          process.env.REFRESH_TOKEN_SECRET,
+        );
+
+        currentSessionId = decoded.sessionId;
+      } catch {
+        // Ignore invalid/expired cookie.
+      }
+    }
+
+    return res.status(200).json({
+      sessions: sessions.map((session) => ({
+        id: session.sessionId,
+        ip: session.ip,
+        userAgent: session.userAgent,
+        createdAt: session.createdAt,
+        lastUsedAt: session.lastUsedAt,
+        expiresAt: session.expiresAt,
+        current: session.sessionId === currentSessionId,
+      })),
+    });
+  } catch (error) {
+    console.error("Get sessions error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+/**
+ * DELETE /api/auth/sessions/:sessionId
+ */
+async function revokeSession(req, res) {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        message: "Session ID is required",
+      });
+    }
+
+    const session = await Session.findOne({
+      sessionId,
+      user: req.user.id,
+      revokedAt: null,
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        message: "Session not found",
+      });
+    }
+
+    session.revokedAt = new Date();
+
+    await session.save();
+
+    /*
+     * If the user revoked the current session,
+     * clear the refresh cookie as well.
+     */
+    const currentRefreshToken = req.cookies.refreshToken;
+
+    if (currentRefreshToken) {
+      try {
+        const decoded = jwt.verify(
+          currentRefreshToken,
+          process.env.REFRESH_TOKEN_SECRET,
+        );
+
+        if (decoded.sessionId === sessionId) {
+          clearRefreshTokenCookie(res);
+        }
+      } catch {
+        clearRefreshTokenCookie(res);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Session revoked successfully",
+    });
+  } catch (error) {
+    console.error("Revoke session error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
 module.exports = {
   signup,
   verifyEmail,
@@ -642,4 +857,6 @@ module.exports = {
   refreshToken,
   signoutAll,
   resendVerification,
+  getSessions,
+  revokeSession,
 };
