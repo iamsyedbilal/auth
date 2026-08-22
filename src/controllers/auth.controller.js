@@ -292,7 +292,9 @@ async function signoutAll(req, res) {
         revokedAt: null,
       },
       {
-        revokedAt: new Date(),
+        $set: {
+          revokedAt: new Date(),
+        },
       },
     );
 
@@ -848,6 +850,17 @@ async function revokeSession(req, res) {
   }
 }
 
+const adminTest = async (req, res) => {
+  return res.status(200).json({
+    message: "Admin access granted",
+    user: {
+      id: req.user._id,
+      email: req.user.email,
+      role: req.user.role,
+    },
+  });
+};
+
 module.exports = {
   signup,
   verifyEmail,
@@ -859,4 +872,5 @@ module.exports = {
   resendVerification,
   getSessions,
   revokeSession,
+  adminTest,
 };
