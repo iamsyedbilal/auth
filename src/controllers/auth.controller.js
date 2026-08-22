@@ -29,7 +29,7 @@ function clearRefreshTokenCookie(res) {
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/api/auth",
   });
 }
@@ -71,43 +71,8 @@ async function signup(req, res) {
   try {
     const { username, email, password } = req.body;
 
-    if (!username || !email || !password) {
-      return res.status(400).json({
-        message: "Username, email and password are required",
-      });
-    }
-
-    const normalizedUsername = username.trim().toLowerCase();
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (normalizedUsername.length < 3) {
-      return res.status(400).json({
-        message: "Username must be at least 3 characters",
-      });
-    }
-
-    if (normalizedUsername.length > 30) {
-      return res.status(400).json({
-        message: "Username must not exceed 30 characters",
-      });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({
-        message: "Password must be at least 8 characters",
-      });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(normalizedEmail)) {
-      return res.status(400).json({
-        message: "Please provide a valid email address",
-      });
-    }
-
     const existingUser = await Auth.findOne({
-      $or: [{ username: normalizedUsername }, { email: normalizedEmail }],
+      $or: [{ username }, { email }],
     });
 
     if (existingUser) {
@@ -119,8 +84,8 @@ async function signup(req, res) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await Auth.create({
-      username: normalizedUsername,
-      email: normalizedEmail,
+      username,
+      email,
       password: hashedPassword,
       emailVerified: false,
     });
@@ -158,12 +123,6 @@ async function signup(req, res) {
 async function signin(req, res) {
   try {
     const { username, email, password } = req.body;
-
-    if ((!username && !email) || !password) {
-      return res.status(400).json({
-        message: "Email/username and password are required",
-      });
-    }
 
     const identifier = (username || email).trim().toLowerCase();
 
@@ -559,22 +518,8 @@ async function verifyEmail(req, res) {
   try {
     const { email, otp } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({
-        message: "Email and OTP are required",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!/^\d{6}$/.test(otp)) {
-      return res.status(400).json({
-        message: "OTP must be 6 digits",
-      });
-    }
-
     const user = await Auth.findOne({
-      email: normalizedEmail,
+      email,
     });
 
     if (!user) {
@@ -655,16 +600,8 @@ async function resendVerification(req, res) {
   try {
     const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        message: "Email is required",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
     const user = await Auth.findOne({
-      email: normalizedEmail,
+      email,
     });
 
     /*

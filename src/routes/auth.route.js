@@ -23,19 +23,37 @@ const {
   refreshRateLimiter,
 } = require("../middlewares/rate-limit.middleware");
 
+const validate = require("../middlewares/validate.middleware");
+const {
+  signupSchema,
+  resendVerificationSchema,
+  signinSchema,
+  verifyEmailSchema,
+} = require("../validators/auth.validator");
+
 const authRouter = express.Router();
 
-authRouter.post("/signup", signupRateLimiter, signup);
+authRouter.post("/signup", signupRateLimiter, validate(signupSchema), signup);
 
-authRouter.post("/verify-email", authRateLimiter, verifyEmail);
+authRouter.post(
+  "/verify-email",
+  authRateLimiter,
+  validate(verifyEmailSchema),
+  verifyEmail,
+);
 
-authRouter.post("/resend-verification", authRateLimiter, resendVerification);
+authRouter.post(
+  "/resend-verification",
+  authRateLimiter,
+  validate(resendVerificationSchema),
+  resendVerification,
+);
 
 authRouter.get("/sessions", auth, getSessions);
 
 authRouter.delete("/sessions/:sessionId", auth, revokeSession);
 
-authRouter.post("/signin", authRateLimiter, signin);
+authRouter.post("/signin", authRateLimiter, validate(signinSchema), signin);
 
 authRouter.post("/signout", signout);
 
