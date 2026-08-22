@@ -155,39 +155,6 @@ Example:
 
 ```js
 requireRole("admin")
-```
-
-### Permissions
-
-Permissions are mapped to roles and checked through reusable middleware.
-
-Current practice permissions include:
-
-```text
-profile.read
-profile.update
-
-users.read
-users.create
-users.update
-users.delete
-```
-
-Example:
-
-```js
-requirePermission(PERMISSIONS.USERS_DELETE)
-```
-
-This separates the concepts clearly:
-
-```text
-Authentication → Who are you?
-Role           → What type of user are you?
-Permission     → What are you allowed to do?
-```
-
-Resource ownership is intentionally deferred for this practice project.
 
 ## Security Hardening
 
