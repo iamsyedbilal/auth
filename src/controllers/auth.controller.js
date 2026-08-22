@@ -19,7 +19,7 @@ function setRefreshTokenCookie(res, refreshToken) {
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/api/auth",
     maxAge: REFRESH_TOKEN_MAX_AGE,
   });
