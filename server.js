@@ -1,12 +1,9 @@
-const request = require("supertest");
 require("dotenv").config({ quiet: true });
 
 const connectDB = require("./src/db/connectDB");
 const app = require("./src/app");
 
 const PORT = process.env.PORT || 3001;
-
-request(app).post("/api/auth/signup");
 
 async function startServer() {
   try {
