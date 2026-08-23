@@ -60,4 +60,26 @@ describe("POST /api/auth/signup", () => {
 
     expect(response.body.message).toBe("Validation failed");
   });
+
+  it("should reject duplicate email", async () => {
+    const email = `test-${Date.now()}@example.com`;
+
+    await request(app).post("/api/auth/signup").send({
+      username: "testuser1",
+      email: email,
+      password: "Password123",
+    });
+
+    const response = await request(app).post("/api/auth/signup").send({
+      username: "testuser2",
+      email: email,
+      password: "Password123",
+    });
+
+    expect(response.statusCode).toBe(400);
+
+    expect(response.body.message).toBe(
+      "Username or email is already registered",
+    );
+  });
 });

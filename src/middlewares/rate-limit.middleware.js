@@ -20,19 +20,19 @@ const createRateLimiter = ({ windowMs, limit, message }) => {
 
 const authRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: process.env.NODE_ENV === "test" ? 1000 : 10,
   message: "Too many authentication attempts. Please try again later.",
 });
 
 const signupRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: process.env.NODE_ENV === "test" ? 1000 : 5,
   message: "Too many signup attempts. Please try again later.",
 });
 
 const refreshRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  limit: 30,
+  limit: process.env.NODE_ENV === "test" ? 1000 : 30,
   message: "Too many refresh attempts. Please try again later.",
 });
 
