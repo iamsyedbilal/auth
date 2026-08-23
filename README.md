@@ -1,76 +1,182 @@
 # Full-Stack Authentication & Authorization System
 
-A security-focused authentication and authorization backend built with **Node.js, Express, MongoDB, JWT, and bcrypt**.
+A security-focused authentication and authorization backend built with **Node.js, Express, MongoDB, JWT, bcrypt, Zod, and Resend**.
 
-This repository is being developed as a complete full-stack identity system. The current phase focuses on the backend authentication foundation; a frontend client and a more complete authorization layer will be implemented next.
+This repository is a practice project for building a modern full-stack identity system from the backend up. The backend authentication, session management, authorization, and security-hardening foundations are being completed before the Next.js frontend is implemented.
 
-## Current Stack
+> **Status:** Backend foundation and security hardening are in progress. Frontend implementation comes after backend testing.
+
+## About
+
+This project is designed to practice and demonstrate the core architecture behind a full-stack authentication and authorization system:
+
+- Secure account signup and signin
+- Email verification with OTP
+- Short-lived access tokens
+- HttpOnly refresh-token cookies
+- Refresh-token rotation
+- Server-side session management
+- Logout and logout-all-devices
+- Role-based access control (RBAC)
+- Permission-based authorization
+- Request validation with Zod
+- Rate limiting for sensitive authentication endpoints
+- Security headers and CORS configuration
+- Centralized error handling
+
+The goal is to build the backend deliberately, understand the security trade-offs, test the authentication flows, and then build a frontend on top of a stable API.
+
+## Tech Stack
 
 - **Node.js** — JavaScript runtime
 - **Express 5** — HTTP API framework
-- **MongoDB + Mongoose** — persistence and data modeling
-- **JWT** — short-lived access tokens and refresh tokens
+- **MongoDB + Mongoose** — database and data modeling
+- **JWT** — access and refresh token signing
 - **bcryptjs** — password and refresh-token hashing
+- **Zod** — request validation and normalization
+- **Resend** — verification email delivery
 - **cookie-parser** — HTTP cookie handling
-- **morgan** — development HTTP logging
+- **Helmet** — security-related HTTP headers
+- **CORS** — controlled cross-origin requests
+- **express-rate-limit** — authentication endpoint rate limiting
+- **Morgan** — development HTTP logging
 - **dotenv** — environment configuration
 
-## Project Structure
+## Current Architecture
 
 ```text
-.
-├── server.js
-├── src/
-│   ├── app.js
-│   ├── controllers/
-│   │   └── auth.controller.js
-│   ├── db/
-│   │   └── connectDB.js
-│   ├── middlewares/
-│   │   └── auth.middleware.js
-│   ├── models/
-│   │   ├── auth.model.js
-│   │   └── session.model.js
-│   └── routes/
-│       └── auth.route.js
-├── .gitignore
-├── package.json
-└── package-lock.json
+Client
+  │
+  ├── Access Token ────────────────┐
+  │                                │
+  └── Refresh Token (HttpOnly)     │
+                                   ▼
+                            Express API
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │                             │
+              Rate Limiting                 Zod Validation
+                    │                             │
+                    └──────────────┬──────────────┘
+                                   ▼
+                             Auth Middleware
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │                             │
+              Authentication              Authorization
+                    │                    ┌────────┴────────┐
+                    │                    │                 │
+                    │                  Roles          Permissions
+                    │
+                    ▼
+                 MongoDB
+                    │
+             User + Sessions
 ```
 
 ## Authentication Flow
 
-The current backend implements the following core flow:
+### Signup
 
-1. **Signup**
-   - Validates required fields.
-   - Checks for an existing username/email.
-   - Hashes the password with bcrypt.
-   - Creates the user.
-   - Creates a server-side session record.
-   - Issues a short-lived access token and a refresh token.
+1. Request passes through rate limiting and Zod validation.
+2. Username/email are normalized and validated.
+3. Password is hashed with bcrypt.
+4. User account is created.
+5. Email verification OTP is generated and sent through Resend.
+6. Verification is required before the account is considered verified.
 
-2. **Signin**
-   - Looks up the user by username or email.
-   - Verifies the password with bcrypt.
-   - Creates a new session.
-   - Issues access and refresh tokens.
+### Email Verification
 
-3. **Refresh Token**
-   - Reads the refresh token from an HttpOnly cookie.
-   - Verifies the JWT.
-   - Looks up the corresponding session.
-   - Checks revocation and expiration.
-   - Compares the presented token with the stored hash.
-   - Rotates the refresh token and creates a new session.
+The user submits their email and six-digit OTP. The backend validates the request and verifies the OTP before marking the account as verified.
 
-4. **Signout**
-   - Attempts to identify and revoke the current refresh-token session.
-   - Clears the refresh-token cookie.
+### Signin
 
-5. **Protected User Endpoint**
-   - `GET /api/auth/me` requires a valid access token.
-   - The authenticated user is attached to `req.user` by the authentication middleware.
+1. Validate credentials.
+2. Find the user.
+3. Verify the password with bcrypt.
+4. Create a server-side session.
+5. Issue a short-lived access token.
+6. Issue a refresh token in an HttpOnly cookie.
+
+### Refresh Token
+
+The refresh endpoint:
+
+1. Reads the refresh token from the HttpOnly cookie.
+2. Verifies the refresh JWT.
+3. Finds the matching server-side session.
+4. Checks revocation and expiration.
+5. Compares the presented refresh token against the stored hash.
+6. Rotates the refresh token.
+7. Updates the existing session instead of creating a new session.
+8. Updates session activity such as `lastUsedAt`.
+
+The important property is:
+
+```text
+Login A → Session A
+Login B → Session B
+Refresh A → Session A (same session, new refresh token)
+```
+
+Refreshing a token does **not** create another session.
+
+## Session Management
+
+Sessions are stored server-side and include lifecycle information such as expiration, revocation, IP address, user-agent, and activity timestamps.
+
+Current session capabilities include:
+
+- Create a session on login
+- List active sessions
+- Revoke an individual session
+- Logout from the current session
+- Logout from all devices
+- Track session activity
+- Reject revoked or expired sessions
+- Rotate refresh tokens without creating duplicate sessions
+
+Revoked sessions are retained for server-side history rather than immediately deleted.
+
+## Authorization
+
+The project currently uses two authorization layers.
+
+### Roles
+
+Current roles:
+
+```text
+user
+admin
+```
+
+Example:
+
+```js
+requireRole("admin")
+
+## Security Hardening
+
+The backend currently includes:
+
+- Helmet security headers
+- Explicit CORS configuration
+- HttpOnly refresh-token cookies
+- Secure cookie settings for production
+- SameSite cookie configuration
+- JSON and URL-encoded request body limits
+- Zod request validation
+- Rate limiting for sensitive authentication endpoints
+- Password hashing with bcrypt
+- Hashed refresh tokens in the database
+- Short-lived access tokens
+- Refresh-token rotation
+- Server-side session revocation
+- Generic internal server-error responses
+- Environment-variable based secrets
+
+Redis-backed rate limiting is intentionally deferred until the project reaches the appropriate stage.
 
 ## API Endpoints
 
@@ -82,36 +188,130 @@ Base URL:
 
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
-| POST | `/signup` | Public | Create an account |
-| POST | `/signin` | Public | Sign in |
-| POST | `/signout` | Public | Revoke the refresh-token session |
+| POST | `/signup` | Public | Create an account and start email verification |
+| POST | `/signin` | Public | Sign in and create a session |
+| POST | `/verify-email` | Public | Verify email with OTP |
+| POST | `/resend-verification` | Public | Resend verification OTP |
 | POST | `/refreshToken` | Refresh cookie | Rotate refresh/access tokens |
+| POST | `/signout` | Public / refresh cookie | Revoke the current session |
+| POST | `/signout-all` | Access token | Revoke all user sessions |
+| GET | `/sessions` | Access token | List active sessions |
+| DELETE | `/sessions/:sessionId` | Access token | Revoke one session |
 | GET | `/me` | Access token | Get the authenticated user |
+
+Admin/authorization routes are used for RBAC and permission testing.
+
+## Token Strategy
 
 ### Access Token
 
-The protected middleware currently accepts an access token from:
+Access tokens are short-lived and sent to protected API requests using:
 
-```text
+```http
 Authorization: Bearer <access-token>
 ```
 
-It also contains support for an `accessToken` cookie, although the current controller does not set that cookie. This should be standardized before the frontend is implemented.
+The token contains only the information needed by the API for authentication/authorization, such as the user ID and role.
+
+### Refresh Token
+
+Refresh tokens are:
+
+- Stored in an HttpOnly cookie
+- Signed as JWTs
+- Hashed before being stored in MongoDB
+- Associated with a server-side session
+- Rotated on refresh
+- Rejected when the session is revoked or expired
+
+The raw refresh token is not stored in the database.
+
+## Validation
+
+Request validation is handled before controllers using Zod.
+
+Example flow:
+
+```text
+Request
+  ↓
+Rate limiter
+  ↓
+Zod validation
+  ↓
+Controller
+  ↓
+Database / service logic
+```
+
+Current authentication schemas cover:
+
+- Signup
+- Signin
+- Email verification
+- Resend verification
+
+Validation for route parameters and query parameters will be expanded as the API grows.
+
+## Project Structure
+
+```text
+.
+├── server.js
+├── src/
+│   ├── app.js
+│   ├── constants/
+│   │   └── permissions.js
+│   ├── controllers/
+│   │   ├── admin.controller.js
+│   │   └── auth.controller.js
+│   ├── db/
+│   │   └── connectDB.js
+│   ├── middlewares/
+│   │   ├── auth.middleware.js
+│   │   ├── permission.middleware.js
+│   │   ├── rate-limit.middleware.js
+│   │   ├── role.middleware.js
+│   │   └── validate.middleware.js
+│   ├── models/
+│   │   ├── auth.model.js
+│   │   └── session.model.js
+│   ├── routes/
+│   │   ├── admin.route.js
+│   │   └── auth.route.js
+│   ├── utils/
+│   │   └── cookie.js
+│   └── validators/
+│       └── auth.validator.js
+├── .gitignore
+├── package.json
+├── package-lock.json
+└── README.md
+```
 
 ## Environment Variables
 
-Create a `.env` file locally. Never commit secrets.
+Create a local `.env` file and never commit real secrets.
 
 ```env
 PORT=3001
 MONGO_URI=mongodb://127.0.0.1:27017
 DB_NAME=auth
+
 ACCESS_TOKEN_SECRET=replace-with-a-long-random-secret
 REFRESH_TOKEN_SECRET=replace-with-a-different-long-random-secret
+
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_IN=7d
+
 NODE_ENV=development
+CLIENT_URL=http://localhost:3000
+
+RESEND_API_KEY=replace-with-your-resend-api-key
+RESEND_FROM_EMAIL=replace-with-your-verified-sender
 ```
 
-Use strong, independent secrets for access and refresh tokens in production.
+Use strong, independent secrets for access and refresh tokens. Never commit `.env` or production credentials.
 
 ## Installation
 
@@ -131,206 +331,117 @@ npm run dev
 npm start
 ```
 
-## Security Model — Current State
+## Testing Strategy
 
-The project already has several good foundations:
+Before the frontend is implemented, the backend will go through a dedicated security/testing pass covering:
 
-- Passwords are hashed instead of stored as plaintext.
-- Refresh tokens are hashed before being persisted.
-- Refresh tokens are stored in an HttpOnly cookie.
-- Access tokens are short-lived (`15m`).
-- Refresh tokens are short-lived (`7d`) and rotated.
-- Sessions have revocation and expiration fields.
-- Session records retain IP address and user-agent information.
-- Protected routes verify JWT signatures before loading the user.
+- Authentication failures
+- Expired access tokens
+- Invalid access tokens
+- Refresh-token rotation
+- Refresh-token reuse
+- Revoked sessions
+- Session expiration
+- Logout and logout-all
+- RBAC failures
+- Permission failures
+- Invalid request payloads
+- Rate-limit behavior
+- Cookie and CORS behavior
 
-However, this is **not yet production-ready**. The issues below should be addressed before treating this as a complete authentication/authorization system.
+The goal is to test both the happy path and the failure/security paths.
 
-## Important Issues Found During Initial Review
+## Roadmap
 
-### 1. Logout cookie path is incorrect — high priority
-
-The refresh cookie is created with:
-
-```text
-/api/auth/refreshToken
-```
-
-but `signout()` attempts to clear it using:
-
-```text
-/api/auth/refresh
-```
-
-These paths do not match, so the browser may keep the refresh cookie after logout.
-
-**Fix:** use exactly the same cookie options/path when clearing the cookie as when setting it.
-
-### 2. Access-token cookie is inconsistent
-
-The authentication middleware checks both an `accessToken` cookie and an `Authorization` header, but signup/signin only return the access token in JSON. No `accessToken` cookie is created.
-
-**Fix:** choose one clear strategy. For a browser-based frontend, we should decide whether the access token lives in memory or a secure cookie and design the API around that choice.
-
-### 3. Authorization is not implemented yet
-
-The project currently provides **authentication**, but not a real authorization system. There are no roles, permissions, resource ownership checks, or policy middleware.
-
-This is important because authentication answers **"Who are you?"**, while authorization answers **"What are you allowed to do?"**
-
-The next backend phase should introduce roles/permissions and reusable authorization middleware.
-
-### 4. Request validation is too weak
-
-Signup currently checks whether fields exist, but does not robustly validate username format, email normalization, password strength, length limits, or unexpected input.
-
-**Recommended direction:** add a schema validation layer such as Zod/Joi/express-validator and normalize emails/usernames consistently.
-
-### 5. Authentication error responses reveal account state
-
-Responses such as `User is not registered` and `Invalid password` allow an attacker to distinguish existing accounts from non-existing accounts.
-
-**Recommended direction:** return a generic authentication failure message for login failures.
-
-### 6. Refresh-token reuse detection is incomplete
-
-Refresh-token rotation is implemented, which is good. However, if a previously rotated refresh token is presented again, the system currently sees the old session as revoked and rejects it, but it does not yet perform a broader session-family compromise response.
-
-**Recommended direction:** model refresh-token families and revoke the relevant session family when reuse is detected.
-
-### 7. No rate limiting or brute-force protection
-
-Signup, signin, and refresh endpoints currently have no visible rate limiting.
-
-**Recommended direction:** add rate limiting, especially for login and token endpoints, with appropriate production storage if the app is horizontally scaled.
-
-### 8. CORS and browser security policy are not configured
-
-The backend currently does not configure CORS. This will become important when the frontend is introduced, especially if the frontend and API use different origins.
-
-We should configure an explicit allowlist rather than allowing arbitrary origins.
-
-### 9. CSRF strategy needs to be designed before frontend work
-
-Because the refresh token is cookie-based, browser requests need a deliberate CSRF strategy. `SameSite=Strict` provides some protection, but it should not be treated as the complete application security model.
-
-Before frontend implementation, we should decide on the final cookie, CSRF, CORS, and credential strategy together.
-
-### 10. Production logging should be reviewed
-
-The application uses Morgan for request logging and still contains direct `console.log`/`console.error` calls. Logs can become noisy and may accidentally expose sensitive debugging information.
-
-**Fix:** introduce structured logging and ensure tokens, passwords, secrets, and sensitive request data are never logged.
-
-### 11. Controller error handling should not expose raw errors
-
-`signin()` currently includes the caught error in the HTTP response:
-
-```text
-Something went wrong ${error}
-```
-
-That can expose implementation details to clients.
-
-**Fix:** log the internal error server-side and return a generic error response.
-
-### 12. Database constraints and input normalization need strengthening
-
-The schema has unique username/email constraints, which is good, but the application-level lookup should also normalize values such as email casing. Race conditions around uniqueness should be handled through MongoDB duplicate-key errors rather than relying only on a prior `findOne()` check.
-
-### 13. Session lifecycle needs additional management
-
-Sessions currently support creation, expiration, and revocation, but the system does not yet expose features such as:
-
-- list active sessions
-- revoke one session
-- revoke all other sessions
-- logout from all devices
-- session cleanup/TTL strategy
-- device/session metadata management
-
-These are useful capabilities for a serious authentication system.
-
-## Planned Roadmap
-
-### Phase 1 — Backend Foundation
+### Phase 1 — Authentication Foundation
 
 - [x] Express API structure
-- [x] MongoDB connection
+- [x] MongoDB/Mongoose
 - [x] User model
 - [x] Password hashing
 - [x] Signup
 - [x] Signin
+- [x] Email verification with OTP
 - [x] Access JWT
 - [x] Refresh JWT
 - [x] Refresh-token hashing
-- [x] Session storage
 - [x] Refresh-token rotation
-- [x] Protected `/me` endpoint
-- [ ] Fix logout cookie path
-- [ ] Add robust request validation
-- [ ] Standardize token transport
-- [ ] Add rate limiting
-- [ ] Add CORS configuration
-- [ ] Add CSRF strategy
-- [ ] Improve security logging
+- [x] Server-side sessions
+- [x] Session activity tracking
+- [x] Logout
+- [x] Logout all devices
+- [x] Active session listing
+- [x] Individual session revocation
 
 ### Phase 2 — Authorization
 
-- [ ] Roles
-- [ ] Permissions
-- [ ] Role/permission middleware
-- [ ] Resource ownership checks
-- [ ] Admin authorization
-- [ ] Permission-aware route protection
-- [ ] Audit logging
+- [x] Roles
+- [x] RBAC middleware
+- [x] Permissions
+- [x] Permission middleware
+- [x] Admin protected routes
+- [x] Permission-aware route protection
+- [ ] Resource ownership — intentionally deferred
 
-### Phase 3 — Account Security
+### Phase 3 — Backend Security
 
-- [ ] Email verification
-- [ ] Forgot password
-- [ ] Reset password
-- [ ] Change password
-- [ ] Revoke all sessions after password change
-- [ ] Account lockout/abuse protection
-- [ ] Optional two-factor authentication
-- [ ] Session/device management
+- [x] Helmet
+- [x] CORS
+- [x] Secure cookies
+- [x] Request body limits
+- [x] Rate limiting
+- [x] Zod validation
+- [x] Generic internal error responses
+- [ ] Security test suite
+- [ ] Final environment/secrets review
+- [ ] Production logging review
 
 ### Phase 4 — Frontend
 
-Build a frontend client against the finalized API, including:
+Build the frontend after the backend API and security model are finalized.
+
+Planned stack:
+
+- Next.js
+- TypeScript
+- TanStack Query
+- Modern component/UI system
+
+Frontend areas:
 
 - [ ] Signup
+- [ ] Email verification
 - [ ] Signin
+- [ ] Authentication state
+- [ ] Access-token handling
+- [ ] Refresh-token flow
 - [ ] Protected routes
-- [ ] Persistent authentication
-- [ ] Token refresh handling
-- [ ] Logout
-- [ ] Account/session management
-- [ ] Authorization-aware UI
-- [ ] Role/permission-based navigation
+- [ ] Session management UI
+- [ ] Logout / logout all
+- [ ] Role-aware UI
+- [ ] Permission-aware UI
 
-### Phase 5 — Production Hardening
+### Deferred Features
 
-- [ ] Automated tests
-- [ ] Security tests
-- [ ] Integration tests
-- [ ] API documentation
-- [ ] Health checks
-- [ ] Structured logging
-- [ ] Monitoring
-- [ ] Secret management
-- [ ] CI checks
-- [ ] Deployment configuration
+The following are intentionally out of scope for this practice phase:
+
+- [ ] Forgot password
+- [ ] Reset password
+- [ ] Redis-backed rate limiting
+- [ ] Resource ownership
+- [ ] Advanced audit logging
+- [ ] Two-factor authentication
+
+These can be implemented later in a production-oriented project.
 
 ## Development Principle
 
-This project is intentionally being built in stages. The goal is not just to make login and signup work, but to build a reusable **full-stack authentication and authorization architecture** with clear separation between authentication, authorization, sessions, account security, and frontend state management.
+This project is being built in stages to understand the security boundaries between authentication, sessions, authorization, account security, and frontend state management.
 
-The backend should be hardened and its security model finalized **before** the frontend is built on top of it.
+The backend is intentionally being hardened and tested **before** the frontend is built on top of it.
 
 ## Status
 
-**Current status: Backend authentication foundation — under active development.**
+**Current phase: Backend security hardening and testing.**
 
-The next step should be a focused backend security/code-quality pass, followed by the authorization architecture, and then the frontend implementation.
+After the security test pass, the project will move to the Next.js frontend and implement the full authentication flow using the finalized API.
