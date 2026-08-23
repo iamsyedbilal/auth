@@ -9,6 +9,11 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch"
   },
+  "jest": {
+  "setupFiles": [
+    "<rootDir>/src/test/setup.js"
+  ]
+},
   "keywords": [],
   "type": "commonjs",
   "dependencies": {
