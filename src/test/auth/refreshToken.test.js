@@ -37,6 +37,7 @@ describe("POST /api/auth/refreshToken", () => {
       {
         id: user._id.toString(),
         sessionId,
+        jti: crypto.randomUUID(),
       },
       process.env.REFRESH_TOKEN_SECRET,
       {
@@ -103,6 +104,7 @@ describe("POST /api/auth/refreshToken", () => {
       {
         id: user._id.toString(),
         sessionId: crypto.randomUUID(),
+        jti: crypto.randomUUID(),
       },
       process.env.REFRESH_TOKEN_SECRET,
       {
