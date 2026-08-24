@@ -23,8 +23,8 @@ describe("POST /api/auth/refreshToken", () => {
     const passwordHash = await bcrypt.hash("Password123", 10);
 
     user = await Auth.create({
-      username: "refreshuser",
-      email: "refresh@example.com",
+      username: `refreshuser-${crypto.randomUUID()}`,
+      email: `refresh-${crypto.randomUUID()}@example.com`,
       password: passwordHash,
       emailVerified: true,
       isActive: true,
@@ -40,9 +40,7 @@ describe("POST /api/auth/refreshToken", () => {
         jti: crypto.randomUUID(),
       },
       process.env.REFRESH_TOKEN_SECRET,
-      {
-        expiresIn: "7d",
-      },
+      { expiresIn: "7d" },
     );
 
     const refreshTokenHash = await bcrypt.hash(refreshToken, 12);
@@ -64,14 +62,8 @@ describe("POST /api/auth/refreshToken", () => {
       .set("Cookie", [`refreshToken=${refreshToken}`]);
 
     expect(response.statusCode).toBe(200);
-
-    expect(response.body).toHaveProperty(
-      "message",
-      "Access token refreshed successfully",
-    );
-
+    expect(response.body).toHaveProperty("message", "Access token refreshed successfully");
     expect(response.body).toHaveProperty("accessToken");
-
     expect(response.headers["set-cookie"]).toEqual(
       expect.arrayContaining([expect.stringContaining("refreshToken=")]),
     );
@@ -79,24 +71,16 @@ describe("POST /api/auth/refreshToken", () => {
 
   it("should reject the request when refresh token is missing", async () => {
     const response = await request(app).post("/api/auth/refreshToken");
-
     expect(response.statusCode).toBe(401);
-
-    expect(response.body).toEqual({
-      message: "Authentication required",
-    });
+    expect(response.body).toEqual({ message: "Authentication required" });
   });
 
   it("should reject an invalid refresh token", async () => {
     const response = await request(app)
       .post("/api/auth/refreshToken")
       .set("Cookie", ["refreshToken=invalid-token"]);
-
     expect(response.statusCode).toBe(401);
-
-    expect(response.body).toEqual({
-      message: "Invalid or expired refresh token",
-    });
+    expect(response.body).toEqual({ message: "Invalid or expired refresh token" });
   });
 
   it("should reject a refresh token with an invalid session", async () => {
@@ -107,9 +91,7 @@ describe("POST /api/auth/refreshToken", () => {
         jti: crypto.randomUUID(),
       },
       process.env.REFRESH_TOKEN_SECRET,
-      {
-        expiresIn: "7d",
-      },
+      { expiresIn: "7d" },
     );
 
     const response = await request(app)
@@ -117,66 +99,41 @@ describe("POST /api/auth/refreshToken", () => {
       .set("Cookie", [`refreshToken=${invalidSessionToken}`]);
 
     expect(response.statusCode).toBe(401);
-
-    expect(response.body).toEqual({
-      message: "Invalid session",
-    });
+    expect(response.body).toEqual({ message: "Invalid session" });
   });
 
   it("should reject a revoked session", async () => {
-    await Session.updateOne(
-      { sessionId },
-      {
-        revokedAt: new Date(),
-      },
-    );
+    await Session.updateOne({ sessionId }, { revokedAt: new Date() });
 
     const response = await request(app)
       .post("/api/auth/refreshToken")
       .set("Cookie", [`refreshToken=${refreshToken}`]);
 
     expect(response.statusCode).toBe(401);
-
-    expect(response.body).toEqual({
-      message: "Refresh token reuse detected",
-    });
+    expect(response.body).toEqual({ message: "Refresh token reuse detected" });
   });
 
   it("should rotate the refresh token", async () => {
-    const oldToken = refreshToken;
-
     const response = await request(app)
       .post("/api/auth/refreshToken")
-      .set("Cookie", [`refreshToken=${oldToken}`]);
+      .set("Cookie", [`refreshToken=${refreshToken}`]);
 
     expect(response.statusCode).toBe(200);
 
-    const cookies = response.headers["set-cookie"];
-
-    expect(cookies).toEqual(
-      expect.arrayContaining([expect.stringContaining("refreshToken=")]),
+    const cookie = response.headers["set-cookie"].find((c) =>
+      c.startsWith("refreshToken="),
     );
 
-    const newCookie = cookies.find((cookie) =>
-      cookie.startsWith("refreshToken="),
-    );
+    expect(cookie).toBeDefined();
 
-    expect(newCookie).toBeDefined();
+    const newToken = cookie.split(";")[0].replace("refreshToken=", "");
 
-    const newToken = newCookie.split(";")[0].replace("refreshToken=", "");
+    expect(newToken).not.toBe(refreshToken);
 
-    expect(newToken).not.toBe(oldToken);
-
-    const session = await Session.findOne({ sessionId });
-
+    const session = await Session.findOne({ sessionId, user: user._id });
     expect(session).toBeTruthy();
-
-    const newTokenMatches = await bcrypt.compare(
-      newToken,
-      session.refreshTokenHash,
-    );
-
-    expect(newTokenMatches).toBe(true);
+    expect(await bcrypt.compare(newToken, session.refreshTokenHash)).toBe(true);
+    expect(await bcrypt.compare(refreshToken, session.refreshTokenHash)).toBe(false);
   });
 
   it("should reject the old refresh token after rotation", async () => {
@@ -188,48 +145,31 @@ describe("POST /api/auth/refreshToken", () => {
 
     expect(firstResponse.statusCode).toBe(200);
 
-    const cookies = firstResponse.headers["set-cookie"];
-
-    const newCookie = cookies.find((cookie) =>
-      cookie.startsWith("refreshToken="),
+    const cookie = firstResponse.headers["set-cookie"].find((c) =>
+      c.startsWith("refreshToken="),
     );
 
-    expect(newCookie).toBeDefined();
+    expect(cookie).toBeDefined();
 
-    const newRefreshToken = newCookie
-      .split(";")[0]
-      .replace("refreshToken=", "");
+    const newRefreshToken = cookie.split(";")[0].replace("refreshToken=", "");
 
-    // The rotated token must be different.
     expect(newRefreshToken).not.toBe(oldRefreshToken);
 
-    const session = await Session.findOne({ sessionId });
+    const session = await Session.findOne({
+      sessionId,
+      user: user._id,
+    });
 
     expect(session).toBeTruthy();
 
-    // New token must match the stored hash.
-    const newTokenMatches = await bcrypt.compare(
-      newRefreshToken,
-      session.refreshTokenHash,
-    );
+    expect(await bcrypt.compare(newRefreshToken, session.refreshTokenHash)).toBe(true);
+    expect(await bcrypt.compare(oldRefreshToken, session.refreshTokenHash)).toBe(false);
 
-    expect(newTokenMatches).toBe(true);
-
-    // Old token must NOT match the stored hash.
-    const oldTokenMatches = await bcrypt.compare(
-      oldRefreshToken,
-      session.refreshTokenHash,
-    );
-
-    expect(oldTokenMatches).toBe(false);
-
-    // Reusing the old token must fail.
     const secondResponse = await request(app)
       .post("/api/auth/refreshToken")
       .set("Cookie", [`refreshToken=${oldRefreshToken}`]);
 
     expect(secondResponse.statusCode).toBe(401);
-
     expect(secondResponse.body).toEqual({
       message: "Refresh token reuse detected",
     });
