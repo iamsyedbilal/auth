@@ -52,6 +52,7 @@ function createRefreshToken(userId, sessionId) {
     {
       id: userId.toString(),
       sessionId,
+      jti: crypto.randomUUID(),
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
@@ -464,7 +465,7 @@ async function refreshToken(req, res) {
         },
       },
       {
-        new: true,
+        returnDocument: "after",
       },
     );
 
