@@ -23,7 +23,7 @@ describe("POST /api/auth/refreshToken", () => {
     const passwordHash = await bcrypt.hash("Password123", 10);
 
     user = await Auth.create({
-      username: `refreshuser-${crypto.randomUUID()}`,
+      username: `refresh${Date.now()}`,
       email: `refresh-${crypto.randomUUID()}@example.com`,
       password: passwordHash,
       emailVerified: true,
@@ -62,7 +62,10 @@ describe("POST /api/auth/refreshToken", () => {
       .set("Cookie", [`refreshToken=${refreshToken}`]);
 
     expect(response.statusCode).toBe(200);
-    expect(response.body).toHaveProperty("message", "Access token refreshed successfully");
+    expect(response.body).toHaveProperty(
+      "message",
+      "Access token refreshed successfully",
+    );
     expect(response.body).toHaveProperty("accessToken");
     expect(response.headers["set-cookie"]).toEqual(
       expect.arrayContaining([expect.stringContaining("refreshToken=")]),
@@ -80,7 +83,9 @@ describe("POST /api/auth/refreshToken", () => {
       .post("/api/auth/refreshToken")
       .set("Cookie", ["refreshToken=invalid-token"]);
     expect(response.statusCode).toBe(401);
-    expect(response.body).toEqual({ message: "Invalid or expired refresh token" });
+    expect(response.body).toEqual({
+      message: "Invalid or expired refresh token",
+    });
   });
 
   it("should reject a refresh token with an invalid session", async () => {
@@ -133,7 +138,9 @@ describe("POST /api/auth/refreshToken", () => {
     const session = await Session.findOne({ sessionId, user: user._id });
     expect(session).toBeTruthy();
     expect(await bcrypt.compare(newToken, session.refreshTokenHash)).toBe(true);
-    expect(await bcrypt.compare(refreshToken, session.refreshTokenHash)).toBe(false);
+    expect(await bcrypt.compare(refreshToken, session.refreshTokenHash)).toBe(
+      false,
+    );
   });
 
   it("should reject the old refresh token after rotation", async () => {
@@ -162,8 +169,12 @@ describe("POST /api/auth/refreshToken", () => {
 
     expect(session).toBeTruthy();
 
-    expect(await bcrypt.compare(newRefreshToken, session.refreshTokenHash)).toBe(true);
-    expect(await bcrypt.compare(oldRefreshToken, session.refreshTokenHash)).toBe(false);
+    expect(
+      await bcrypt.compare(newRefreshToken, session.refreshTokenHash),
+    ).toBe(true);
+    expect(
+      await bcrypt.compare(oldRefreshToken, session.refreshTokenHash),
+    ).toBe(false);
 
     const secondResponse = await request(app)
       .post("/api/auth/refreshToken")

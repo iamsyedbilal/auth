@@ -50,9 +50,9 @@ function createAccessToken(user) {
 function createRefreshToken(userId, sessionId) {
   return jwt.sign(
     {
+      jti: crypto.randomUUID(),
       id: userId.toString(),
       sessionId,
-      jti: crypto.randomUUID(),
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
@@ -468,12 +468,6 @@ async function refreshToken(req, res) {
         returnDocument: "after",
       },
     );
-
-    console.log("OLD HASH:", session.refreshTokenHash);
-
-    console.log("NEW HASH:", newRefreshTokenHash);
-
-    console.log("UPDATED HASH:", updatedSession?.refreshTokenHash);
 
     /*
      * If no document was updated, another request already
