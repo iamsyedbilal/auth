@@ -469,6 +469,12 @@ async function refreshToken(req, res) {
       },
     );
 
+    console.log("OLD HASH:", session.refreshTokenHash);
+
+    console.log("NEW HASH:", newRefreshTokenHash);
+
+    console.log("UPDATED HASH:", updatedSession?.refreshTokenHash);
+
     /*
      * If no document was updated, another request already
      * rotated this token.

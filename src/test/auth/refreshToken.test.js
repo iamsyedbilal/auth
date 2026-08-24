@@ -180,15 +180,53 @@ describe("POST /api/auth/refreshToken", () => {
   });
 
   it("should reject the old refresh token after rotation", async () => {
+    const oldRefreshToken = refreshToken;
+
     const firstResponse = await request(app)
       .post("/api/auth/refreshToken")
-      .set("Cookie", [`refreshToken=${refreshToken}`]);
+      .set("Cookie", [`refreshToken=${oldRefreshToken}`]);
 
     expect(firstResponse.statusCode).toBe(200);
 
+    const cookies = firstResponse.headers["set-cookie"];
+
+    const newCookie = cookies.find((cookie) =>
+      cookie.startsWith("refreshToken="),
+    );
+
+    expect(newCookie).toBeDefined();
+
+    const newRefreshToken = newCookie
+      .split(";")[0]
+      .replace("refreshToken=", "");
+
+    // The rotated token must be different.
+    expect(newRefreshToken).not.toBe(oldRefreshToken);
+
+    const session = await Session.findOne({ sessionId });
+
+    expect(session).toBeTruthy();
+
+    // New token must match the stored hash.
+    const newTokenMatches = await bcrypt.compare(
+      newRefreshToken,
+      session.refreshTokenHash,
+    );
+
+    expect(newTokenMatches).toBe(true);
+
+    // Old token must NOT match the stored hash.
+    const oldTokenMatches = await bcrypt.compare(
+      oldRefreshToken,
+      session.refreshTokenHash,
+    );
+
+    expect(oldTokenMatches).toBe(false);
+
+    // Reusing the old token must fail.
     const secondResponse = await request(app)
       .post("/api/auth/refreshToken")
-      .set("Cookie", [`refreshToken=${refreshToken}`]);
+      .set("Cookie", [`refreshToken=${oldRefreshToken}`]);
 
     expect(secondResponse.statusCode).toBe(401);
 
