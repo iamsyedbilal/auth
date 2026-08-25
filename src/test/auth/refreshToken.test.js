@@ -154,8 +154,12 @@ describe("POST /api/auth/refreshToken", () => {
     }).lean();
 
     expect(session).toBeTruthy();
-    expect(await bcrypt.compare(newToken, session.refreshTokenHash)).toBe(true);
-    expect(await bcrypt.compare(refreshToken, session.refreshTokenHash)).toBe(false);
+    expect(
+      await bcrypt.compare(newRefreshToken, session.refreshTokenHash),
+    ).toBe(true);
+    expect(
+      await bcrypt.compare(refreshToken, session.refreshTokenHash),
+    ).toBe(false);
   });
 
   it("should reject the old refresh token after rotation", async () => {
@@ -185,9 +189,12 @@ describe("POST /api/auth/refreshToken", () => {
     });
 
     expect(session).toBeTruthy();
-
-    expect(await bcrypt.compare(newRefreshToken, session.refreshTokenHash)).toBe(true);
-    expect(await bcrypt.compare(oldRefreshToken, session.refreshTokenHash)).toBe(false);
+    expect(
+      await bcrypt.compare(newRefreshToken, session.refreshTokenHash),
+    ).toBe(true);
+    expect(
+      await bcrypt.compare(oldRefreshToken, session.refreshTokenHash),
+    ).toBe(false);
 
     const secondResponse = await request(app)
       .post("/api/auth/refreshToken")
