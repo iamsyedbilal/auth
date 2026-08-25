@@ -12,10 +12,11 @@ describe("POST /api/auth/signout-all", () => {
 
   beforeEach(async () => {
     const passwordHash = await bcrypt.hash(password, 10);
+    const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
 
     user = await Auth.create({
-      username: `signoutall-${crypto.randomUUID()}`,
-      email: `signoutall-${crypto.randomUUID()}@example.com`,
+      username: `signout-${suffix}`,
+      email: `signout-${crypto.randomUUID()}@example.com`,
       password: passwordHash,
       emailVerified: true,
       isActive: true,
@@ -55,10 +56,12 @@ describe("POST /api/auth/signout-all", () => {
       message: "Logged out from all devices successfully",
     });
 
-    const sessions = await Session.find({ user: user._id });
+    const activeSessions = await Session.countDocuments({
+      user: user._id,
+      revokedAt: null,
+    });
 
-    expect(sessions).toHaveLength(2);
-    expect(sessions.every((session) => session.revokedAt)).toBe(true);
+    expect(activeSessions).toBe(0);
   });
 
   it("should revoke every session, not only the current device", async () => {
@@ -84,11 +87,9 @@ describe("POST /api/auth/signout-all", () => {
 
     expect(response.statusCode).toBe(200);
 
-    const activeSessions = await Session.countDocuments({
-      user: user._id,
-      revokedAt: null,
-    });
+    const sessionsAfter = await Session.find({ user: user._id });
 
-    expect(activeSessions).toBe(0);
+    expect(sessionsAfter).toHaveLength(2);
+    expect(sessionsAfter.every((session) => session.revokedAt)).toBe(true);
   });
 });
