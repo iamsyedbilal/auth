@@ -1,3 +1,9 @@
+jest.mock("../../services/email.service.js", () => {
+  return jest.fn().mockResolvedValue({
+    id: "test-email-id",
+  });
+});
+
 const request = require("supertest");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
