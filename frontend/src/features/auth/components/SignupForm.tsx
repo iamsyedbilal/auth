@@ -1,18 +1,46 @@
 import { useState } from "react";
 import type React from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import "./SignupForm.css";
+import { useSignup } from "../hooks/useSignup";
 
 export default function SignupForm() {
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [formError, setFormError] = useState("");
+  const signupMutation = useSignup();
+  const navigate = useNavigate();
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // UI only for now.
-    console.log("Signup submitted");
+    setFormError("");
+
+    if (password !== confirmPassword) {
+      setFormError("Passwords do not match.");
+      return;
+    }
+
+    signupMutation.mutate(
+      {
+        username,
+        email,
+        password,
+      },
+      {
+        onSuccess: () => {
+          setUsername("");
+          setEmail("");
+          setPassword("");
+          navigate("/verify-email");
+        },
+      },
+    );
   };
 
   return (
@@ -32,6 +60,8 @@ export default function SignupForm() {
             type="text"
             placeholder="Enter your username"
             autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
         </div>
 
@@ -44,6 +74,8 @@ export default function SignupForm() {
             type="email"
             placeholder="you@example.com"
             autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
 
@@ -57,6 +89,8 @@ export default function SignupForm() {
               type={showPassword ? "text" : "password"}
               placeholder="Create a password"
               autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
 
             <button
@@ -82,6 +116,8 @@ export default function SignupForm() {
               type={showConfirmPassword ? "text" : "password"}
               placeholder="Confirm your password"
               autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
             />
 
             <button
@@ -99,6 +135,18 @@ export default function SignupForm() {
           </div>
         </div>
 
+        {formError && (
+          <p className="signup-form__error" role="alert">
+            {formError}
+          </p>
+        )}
+
+        {signupMutation.isError && (
+          <p className="signup-form__error" role="alert">
+            {signupMutation.error.message}
+          </p>
+        )}
+
         <label className="signup-form__terms">
           <input
             type="checkbox"
@@ -115,9 +163,9 @@ export default function SignupForm() {
         <button
           type="submit"
           className="signup-form__submit"
-          disabled={!agreeToTerms}
+          disabled={!agreeToTerms || signupMutation.isPending}
         >
-          Create account
+          {signupMutation.isPending ? "Creating account..." : "Create account"}
         </button>
       </form>
 
