@@ -35,11 +35,13 @@ export interface SigninPayload {
 export interface SigninResponse {
   message: string;
   accessToken: string;
-  user: {
-    id: string;
-    username: string;
-    email: string;
-  };
+  user: User;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
 }
 
 export async function signup(payload: SignupPayload): Promise<SignupResponse> {
@@ -71,5 +73,11 @@ export async function signin(payload: SigninPayload): Promise<SigninResponse> {
   return apiClient<SigninResponse>("/auth/signin", {
     method: "POST",
     body: payload,
+  });
+}
+
+export async function getMe(): Promise<User> {
+  return apiClient<User>("/auth/me", {
+    method: "GET",
   });
 }

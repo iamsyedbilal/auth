@@ -1,10 +1,6 @@
 const API_BASE_URL = "http://localhost:3000/api";
 
-import {
-  clearAccessToken,
-  getAccessToken,
-  setAccessToken,
-} from "./tokenStore";
+import { clearAccessToken, getAccessToken, setAccessToken } from "./tokenStore";
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
@@ -49,7 +45,7 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
-async function request<T>(
+async function request(
   endpoint: string,
   options: ApiRequestOptions,
   accessToken: string | null,

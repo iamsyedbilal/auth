@@ -24,7 +24,6 @@ export default function SigninForm() {
       },
       {
         onSuccess: (data) => {
-          console.log("Signin response:", data);
           login(data);
           navigate("/dashboard");
         },

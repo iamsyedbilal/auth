@@ -4,6 +4,7 @@ import Sessions from "../pages/Sessions";
 import Login from "../pages/Login";
 import Signup from "../pages/Signup";
 import VerifyEmail from "../pages/VerifyEmail";
+import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
   return (
@@ -15,8 +16,10 @@ export default function AppRoutes() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
 
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/sessions" element={<Sessions />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/sessions" element={<Sessions />} />
+        </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
