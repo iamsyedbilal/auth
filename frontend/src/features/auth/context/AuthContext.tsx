@@ -1,16 +1,12 @@
-import {
-  createContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
-import type { SigninResponse } from "../services/auth.service";
+import { createContext, useEffect, useState, type ReactNode } from "react";
+import type { SigninResponse, User } from "../services/auth.service";
 import {
   clearAccessToken,
   getAccessToken,
   setAccessToken,
   subscribeToAccessToken,
 } from "../../../api/tokenStore";
+import { refreshAccessToken } from "../services/token.service";
 
 interface AuthContextValue {
   user: User | null;
@@ -45,7 +41,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       try {
         const data = await refreshAccessToken();
-        setAccessToken(data.accessToken);
+        setAccessToken(data?.accessToken);
       } catch {
         clearAccessToken();
         setUser(null);
