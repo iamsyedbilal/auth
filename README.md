@@ -1,182 +1,270 @@
 # Full-Stack Authentication & Authorization System
 
-A security-focused authentication and authorization backend built with **Node.js, Express, MongoDB, JWT, bcrypt, Zod, and Resend**.
+A security-focused full-stack authentication system built from the backend up and connected to a React frontend.
 
-This repository is a practice project for building a modern full-stack identity system from the backend up. The backend authentication, session management, authorization, and security-hardening foundations are being completed before the Next.js frontend is implemented.
+The project is designed as a practical authentication/authorization implementation using Node.js, Express, MongoDB, JWT, secure cookies, session management, email verification, rate limiting, and a TypeScript React frontend.
 
-> **Status:** Backend foundation and security hardening are in progress. Frontend implementation comes after backend testing.
+> **Status:** Backend authentication and security flows are implemented and tested. Frontend UI and API integration are currently being built incrementally.
 
 ## About
 
-This project is designed to practice and demonstrate the core architecture behind a full-stack authentication and authorization system:
+This project demonstrates the architecture and security concepts behind a modern authentication system:
 
-- Secure account signup and signin
-- Email verification with OTP
+- Account signup and signin
+- Email verification with a six-digit OTP
 - Short-lived access tokens
 - HttpOnly refresh-token cookies
 - Refresh-token rotation
+- Hashed refresh tokens stored server-side
 - Server-side session management
-- Logout and logout-all-devices
+- Individual logout and logout-all-devices
+- Session activity tracking
 - Role-based access control (RBAC)
 - Permission-based authorization
-- Request validation with Zod
+- Zod request validation
 - Rate limiting for sensitive authentication endpoints
-- Security headers and CORS configuration
+- Helmet security headers
+- CORS configuration
 - Centralized error handling
+- React frontend with TypeScript
+- TanStack Query for frontend server-state mutations
+- React Router for frontend routing
 
-The goal is to build the backend deliberately, understand the security trade-offs, test the authentication flows, and then build a frontend on top of a stable API.
+The project is intentionally built in layers so the authentication and security behavior can be understood, tested, and then consumed by the frontend.
 
 ## Tech Stack
+
+### Backend
 
 - **Node.js** — JavaScript runtime
 - **Express 5** — HTTP API framework
 - **MongoDB + Mongoose** — database and data modeling
-- **JWT** — access and refresh token signing
+- **jsonwebtoken** — JWT access and refresh tokens
 - **bcryptjs** — password and refresh-token hashing
 - **Zod** — request validation and normalization
 - **Resend** — verification email delivery
 - **cookie-parser** — HTTP cookie handling
-- **Helmet** — security-related HTTP headers
+- **Helmet** — security headers
 - **CORS** — controlled cross-origin requests
-- **express-rate-limit** — authentication endpoint rate limiting
-- **Morgan** — development HTTP logging
+- **express-rate-limit** — rate limiting
+- **Morgan** — HTTP request logging
 - **dotenv** — environment configuration
 
-## Current Architecture
+### Frontend
+
+- **React** — UI library
+- **TypeScript** — type safety
+- **Vite** — frontend tooling and development server
+- **React Router** — client-side routing
+- **TanStack Query** — server-state and API mutations
+- **CSS** — component/page styling
+
+### Testing
+
+- **Jest** — test runner
+- **Supertest** — HTTP API testing
+
+## Architecture
 
 ```text
-Client
-  │
-  ├── Access Token ────────────────┐
-  │                                │
-  └── Refresh Token (HttpOnly)     │
-                                   ▼
-                            Express API
-                                   │
-                    ┌──────────────┴──────────────┐
-                    │                             │
-              Rate Limiting                 Zod Validation
-                    │                             │
-                    └──────────────┬──────────────┘
-                                   ▼
-                             Auth Middleware
-                                   │
-                    ┌──────────────┴──────────────┐
-                    │                             │
-              Authentication              Authorization
-                    │                    ┌────────┴────────┐
-                    │                    │                 │
-                    │                  Roles          Permissions
-                    │
-                    ▼
-                 MongoDB
-                    │
-             User + Sessions
+                         ┌─────────────────────┐
+                         │     React Frontend   │
+                         │ React + TypeScript   │
+                         │ React Router         │
+                         │ TanStack Query       │
+                         └──────────┬──────────┘
+                                    │
+                                    │ HTTP / JSON
+                                    ▼
+                         ┌─────────────────────┐
+                         │    Express API      │
+                         ├─────────────────────┤
+                         │ CORS                │
+                         │ Helmet              │
+                         │ Rate Limiting       │
+                         │ Zod Validation      │
+                         │ Auth Middleware      │
+                         │ Role/Permission     │
+                         └──────────┬──────────┘
+                                    │
+                         ┌──────────┴──────────┐
+                         ▼                     ▼
+                 ┌──────────────┐      ┌──────────────┐
+                 │   MongoDB    │      │    Resend    │
+                 │ Users        │      │ Email / OTP  │
+                 │ Sessions     │      └──────────────┘
+                 │ Verification │
+                 └──────────────┘
 ```
 
 ## Authentication Flow
 
-### Signup
-
-1. Request passes through rate limiting and Zod validation.
-2. Username/email are normalized and validated.
-3. Password is hashed with bcrypt.
-4. User account is created.
-5. Email verification OTP is generated and sent through Resend.
-6. Verification is required before the account is considered verified.
-
-### Email Verification
-
-The user submits their email and six-digit OTP. The backend validates the request and verifies the OTP before marking the account as verified.
-
-### Signin
-
-1. Validate credentials.
-2. Find the user.
-3. Verify the password with bcrypt.
-4. Create a server-side session.
-5. Issue a short-lived access token.
-6. Issue a refresh token in an HttpOnly cookie.
-
-### Refresh Token
-
-The refresh endpoint:
-
-1. Reads the refresh token from the HttpOnly cookie.
-2. Verifies the refresh JWT.
-3. Finds the matching server-side session.
-4. Checks revocation and expiration.
-5. Compares the presented refresh token against the stored hash.
-6. Rotates the refresh token.
-7. Updates the existing session instead of creating a new session.
-8. Updates session activity such as `lastUsedAt`.
-
-The important property is:
+### 1. Signup
 
 ```text
-Login A → Session A
-Login B → Session B
-Refresh A → Session A (same session, new refresh token)
+Signup Form
+    ↓
+POST /api/auth/signup
+    ↓
+Validate request with Zod
+    ↓
+Create user + hash password
+    ↓
+Generate verification OTP
+    ↓
+Send OTP through Resend
+    ↓
+Return email to frontend
+    ↓
+Navigate to Verify Email
 ```
 
-Refreshing a token does **not** create another session.
+The frontend passes the returned email to the verification page using React Router state.
+
+### 2. Email Verification
+
+```text
+Verify Email Form
+    ↓
+Enter 6-digit OTP
+    ↓
+POST /api/auth/verify-email
+    ↓
+Validate email + OTP
+    ↓
+Check verification record
+    ↓
+Mark user as verified
+    ↓
+Navigate to Login
+```
+
+A verification OTP is limited by expiration and verification-attempt rules on the backend.
+
+The frontend also supports requesting a new verification code through:
+
+```text
+POST /api/auth/resend-verification
+```
+
+### 3. Signin
+
+```text
+Login Form
+    ↓
+POST /api/auth/signin
+    ↓
+Validate credentials
+    ↓
+Verify password
+    ↓
+Create server-side session
+    ↓
+Create access token
+    ↓
+Create refresh token
+    ↓
+Set refresh token as HttpOnly cookie
+```
+
+### 4. Refresh Token
+
+The refresh-token flow is session-based rather than simply trusting a JWT by itself.
+
+```text
+Browser
+   │
+   │ HttpOnly refreshToken cookie
+   ▼
+POST /api/auth/refreshToken
+   │
+   ├── Verify refresh JWT
+   ├── Find session
+   ├── Check session state
+   ├── Compare refresh token hash
+   ├── Generate new access token
+   ├── Generate new refresh token
+   ├── Hash new refresh token
+   └── Update existing session
+             │
+             ▼
+        New tokens
+```
+
+The refresh token is rotated instead of creating another session.
+
+```text
+Login on Device A
+        ↓
+Session A
+        ↓
+Refresh
+        ↓
+Session A + new refresh token
+```
+
+A second login creates a separate session:
+
+```text
+Device A → Session A
+Device B → Session B
+```
+
+This allows users to manage individual devices/sessions independently.
 
 ## Session Management
 
-Sessions are stored server-side and include lifecycle information such as expiration, revocation, IP address, user-agent, and activity timestamps.
+Sessions are stored in MongoDB and are associated with users.
 
-Current session capabilities include:
+The session system supports:
 
-- Create a session on login
-- List active sessions
-- Revoke an individual session
-- Logout from the current session
+- Creating a session during signin
+- Listing active sessions
+- Tracking `lastUsedAt`
+- Tracking IP/user-agent information
+- Session expiration
+- Individual session revocation
+- Current-session logout
 - Logout from all devices
-- Track session activity
-- Reject revoked or expired sessions
-- Rotate refresh tokens without creating duplicate sessions
+- Rejecting revoked sessions
+- Refresh-token rotation within the same session
 
-Revoked sessions are retained for server-side history rather than immediately deleted.
+Revoked sessions can remain stored for lifecycle/history purposes instead of being immediately deleted.
 
 ## Authorization
 
-The project currently uses two authorization layers.
+The backend includes role and permission concepts for protected routes.
 
-### Roles
-
-Current roles:
+Current role examples include:
 
 ```text
 user
 admin
 ```
 
-Example:
-
-```js
-requireRole("admin")
+Authorization is separated from authentication so that a successfully authenticated user can still be denied access to resources they are not authorized to use.
 
 ## Security Hardening
 
-The backend currently includes:
+The backend includes:
 
-- Helmet security headers
-- Explicit CORS configuration
-- HttpOnly refresh-token cookies
-- Secure cookie settings for production
-- SameSite cookie configuration
-- JSON and URL-encoded request body limits
-- Zod request validation
-- Rate limiting for sensitive authentication endpoints
 - Password hashing with bcrypt
-- Hashed refresh tokens in the database
+- Hashed refresh tokens in MongoDB
+- HttpOnly refresh-token cookies
+- Secure cookie configuration for production
+- SameSite cookie configuration
 - Short-lived access tokens
 - Refresh-token rotation
 - Server-side session revocation
+- Helmet security headers
+- Explicit CORS configuration
+- Request body size limits
+- Zod request validation
+- Rate limiting for sensitive endpoints
 - Generic internal server-error responses
 - Environment-variable based secrets
 
-Redis-backed rate limiting is intentionally deferred until the project reaches the appropriate stage.
+Redis-backed distributed rate limiting is intentionally deferred.
 
 ## API Endpoints
 
@@ -186,72 +274,124 @@ Base URL:
 /api/auth
 ```
 
-| Method | Endpoint | Auth | Purpose |
+| Method | Endpoint | Authentication | Purpose |
 |---|---|---|---|
-| POST | `/signup` | Public | Create an account and start email verification |
-| POST | `/signin` | Public | Sign in and create a session |
-| POST | `/verify-email` | Public | Verify email with OTP |
-| POST | `/resend-verification` | Public | Resend verification OTP |
-| POST | `/refreshToken` | Refresh cookie | Rotate refresh/access tokens |
-| POST | `/signout` | Public / refresh cookie | Revoke the current session |
+| POST | `/signup` | Public | Create an account and send verification OTP |
+| POST | `/signin` | Public | Authenticate and create a session |
+| POST | `/verify-email` | Public | Verify email using OTP |
+| POST | `/resend-verification` | Public | Send a new verification OTP |
+| POST | `/refreshToken` | Refresh cookie | Refresh access token and rotate refresh token |
+| POST | `/signout` | Refresh cookie | Revoke the current session |
 | POST | `/signout-all` | Access token | Revoke all user sessions |
-| GET | `/sessions` | Access token | List active sessions |
-| DELETE | `/sessions/:sessionId` | Access token | Revoke one session |
+| GET | `/sessions` | Access token | List user sessions |
+| DELETE | `/sessions/:sessionId` | Access token | Revoke a specific session |
 | GET | `/me` | Access token | Get the authenticated user |
 
-Admin/authorization routes are used for RBAC and permission testing.
+Authorization/admin endpoints are also present for role and permission-related functionality.
 
 ## Token Strategy
 
 ### Access Token
 
-Access tokens are short-lived and sent to protected API requests using:
+The access token is short-lived and is intended for authenticated API requests:
 
 ```http
 Authorization: Bearer <access-token>
 ```
 
-The token contains only the information needed by the API for authentication/authorization, such as the user ID and role.
+The access token contains the information required by the backend for authentication/authorization, including the user ID and role.
 
 ### Refresh Token
 
 Refresh tokens are:
 
+- JWTs
 - Stored in an HttpOnly cookie
-- Signed as JWTs
-- Hashed before being stored in MongoDB
 - Associated with a server-side session
-- Rotated on refresh
-- Rejected when the session is revoked or expired
+- Hashed before database storage
+- Rotated after successful refresh
+- Rejected when invalid, expired, or associated with a revoked session
 
-The raw refresh token is not stored in the database.
+The raw refresh token is not stored in MongoDB.
 
 ## Validation
 
-Request validation is handled before controllers using Zod.
-
-Example flow:
+Authentication requests use Zod schemas before controller logic.
 
 ```text
 Request
-  ↓
-Rate limiter
-  ↓
-Zod validation
-  ↓
+   ↓
+Rate Limiter
+   ↓
+Zod Validation
+   ↓
 Controller
-  ↓
-Database / service logic
+   ↓
+Service / Database Logic
 ```
 
-Current authentication schemas cover:
+Current authentication validation covers signup, signin, email verification, and resend-verification requests.
 
-- Signup
-- Signin
-- Email verification
-- Resend verification
+## Frontend Architecture
 
-Validation for route parameters and query parameters will be expanded as the API grows.
+The frontend lives inside the `frontend/` directory.
+
+The current frontend follows a feature-oriented structure:
+
+```text
+frontend/
+├── src/
+│   ├── api/
+│   │   └── apiClient.ts
+│   ├── features/
+│   │   └── auth/
+│   │       ├── components/
+│   │       ├── hooks/
+│   │       └── services/
+│   ├── layouts/
+│   ├── pages/
+│   ├── routes/
+│   ├── App.tsx
+│   └── main.tsx
+├── package.json
+├── vite.config.ts
+└── ...
+```
+
+The frontend API flow is intentionally separated into layers:
+
+```text
+Component
+    ↓
+TanStack Query Hook
+    ↓
+Auth Service
+    ↓
+apiClient
+    ↓
+Express API
+```
+
+`apiClient.ts` is the generic HTTP layer. TanStack Query is used at the feature/hook layer for server-state mutations rather than inside the generic API client.
+
+## Current Frontend Auth UI
+
+The authentication UI currently includes:
+
+- Signup page
+- Login page UI
+- Email verification page
+- Auth layout
+- Dashboard page UI
+- Sessions page UI
+- React Router navigation
+- Signup API integration
+- Email verification API integration
+- Resend verification API integration
+- API error display
+- Loading states for authentication mutations
+
+The frontend is being connected to the backend incrementally rather than implementing the entire API layer at once.
 
 ## Project Structure
 
@@ -275,14 +415,30 @@ Validation for route parameters and query parameters will be expanded as the API
 │   │   └── validate.middleware.js
 │   ├── models/
 │   │   ├── auth.model.js
+│   │   ├── email-verification.model.js
 │   │   └── session.model.js
 │   ├── routes/
 │   │   ├── admin.route.js
 │   │   └── auth.route.js
+│   ├── services/
+│   │   ├── auth.service.js
+│   │   └── email.service.js
 │   ├── utils/
-│   │   └── cookie.js
+│   │   ├── cookie.js
+│   │   └── otp.js
 │   └── validators/
 │       └── auth.validator.js
+│
+├── frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   ├── features/
+│   │   ├── layouts/
+│   │   ├── pages/
+│   │   └── routes/
+│   ├── package.json
+│   └── vite.config.ts
+│
 ├── .gitignore
 ├── package.json
 ├── package-lock.json
@@ -291,10 +447,12 @@ Validation for route parameters and query parameters will be expanded as the API
 
 ## Environment Variables
 
+### Backend
+
 Create a local `.env` file and never commit real secrets.
 
 ```env
-PORT=3001
+PORT=3000
 MONGO_URI=mongodb://127.0.0.1:27017
 DB_NAME=auth
 
@@ -305,55 +463,88 @@ ACCESS_TOKEN_EXPIRES_IN=15m
 REFRESH_TOKEN_EXPIRES_IN=7d
 
 NODE_ENV=development
-CLIENT_URL=http://localhost:3000
+CLIENT_URL=http://localhost:5173
 
 RESEND_API_KEY=replace-with-your-resend-api-key
 RESEND_FROM_EMAIL=replace-with-your-verified-sender
 ```
 
-Use strong, independent secrets for access and refresh tokens. Never commit `.env` or production credentials.
+The frontend development server runs on Vite, while the Express API runs separately. `CLIENT_URL` must match the frontend origin used during local development.
+
+Use different strong secrets for access and refresh tokens. Never commit `.env` or production credentials.
 
 ## Installation
+
+Install backend dependencies:
 
 ```bash
 npm install
 ```
 
+Install frontend dependencies:
+
+```bash
+cd frontend
+npm install
+```
+
 ## Development
+
+Start the backend:
 
 ```bash
 npm run dev
 ```
 
-## Production
+Start the frontend in a separate terminal:
 
 ```bash
-npm start
+cd frontend
+npm run dev
 ```
 
-## Testing Strategy
+The local development setup is typically:
 
-Before the frontend is implemented, the backend will go through a dedicated security/testing pass covering:
+```text
+Frontend: http://localhost:5173
+Backend:  http://localhost:3000
+```
 
-- Authentication failures
-- Expired access tokens
-- Invalid access tokens
+## Testing
+
+Backend tests use Jest and Supertest to exercise the API through HTTP requests.
+
+Authentication tests cover both successful and failure/security paths, including:
+
+- Signup
+- Signin
+- Email verification
+- Refresh-token behavior
 - Refresh-token rotation
-- Refresh-token reuse
+- Invalid refresh tokens
+- Invalid sessions
 - Revoked sessions
-- Session expiration
-- Logout and logout-all
-- RBAC failures
-- Permission failures
-- Invalid request payloads
-- Rate-limit behavior
-- Cookie and CORS behavior
+- Session listing
+- Individual session revocation
+- Logout
+- Logout from all devices
+- Authentication failures
 
-The goal is to test both the happy path and the failure/security paths.
+Run the full backend test suite with:
 
-## Roadmap
+```bash
+npm test
+```
 
-### Phase 1 — Authentication Foundation
+Run an individual authentication test file with:
+
+```bash
+npm test -- src/test/auth/signup.test.js
+```
+
+## Development Roadmap
+
+### Backend
 
 - [x] Express API structure
 - [x] MongoDB/Mongoose
@@ -370,78 +561,76 @@ The goal is to test both the happy path and the failure/security paths.
 - [x] Session activity tracking
 - [x] Logout
 - [x] Logout all devices
-- [x] Active session listing
+- [x] Session listing
 - [x] Individual session revocation
-
-### Phase 2 — Authorization
-
-- [x] Roles
-- [x] RBAC middleware
-- [x] Permissions
-- [x] Permission middleware
-- [x] Admin protected routes
-- [x] Permission-aware route protection
-- [ ] Resource ownership — intentionally deferred
-
-### Phase 3 — Backend Security
-
-- [x] Helmet
-- [x] CORS
-- [x] Secure cookies
-- [x] Request body limits
+- [x] RBAC foundation
+- [x] Permission middleware foundation
 - [x] Rate limiting
 - [x] Zod validation
-- [x] Generic internal error responses
-- [ ] Security test suite
-- [ ] Final environment/secrets review
-- [ ] Production logging review
+- [x] Security middleware
+- [x] Authentication test suite
 
-### Phase 4 — Frontend
+### Frontend
 
-Build the frontend after the backend API and security model are finalized.
-
-Planned stack:
-
-- Next.js
-- TypeScript
-- TanStack Query
-- Modern component/UI system
-
-Frontend areas:
-
-- [ ] Signup
-- [ ] Email verification
-- [ ] Signin
-- [ ] Authentication state
-- [ ] Access-token handling
-- [ ] Refresh-token flow
+- [x] React + TypeScript + Vite setup
+- [x] React Router setup
+- [x] Auth layout
+- [x] Signup page UI
+- [x] Login page UI
+- [x] Email verification page UI
+- [x] Dashboard UI foundation
+- [x] Sessions UI foundation
+- [x] Signup API integration
+- [x] Email verification API integration
+- [x] Resend verification integration
+- [x] Authentication error/loading states
+- [ ] Signin API integration
+- [ ] Access-token authentication state
 - [ ] Protected routes
-- [ ] Session management UI
-- [ ] Logout / logout all
+- [ ] Refresh-token handling
+- [ ] Session management integration
+- [ ] Logout integration
+- [ ] Logout-all integration
 - [ ] Role-aware UI
 - [ ] Permission-aware UI
 
 ### Deferred Features
 
-The following are intentionally out of scope for this practice phase:
+These features are intentionally deferred for the current practice project:
 
 - [ ] Forgot password
 - [ ] Reset password
-- [ ] Redis-backed rate limiting
-- [ ] Resource ownership
+- [ ] Redis-backed distributed rate limiting
 - [ ] Advanced audit logging
 - [ ] Two-factor authentication
-
-These can be implemented later in a production-oriented project.
+- [ ] Resource ownership/authorization rules beyond the current RBAC foundation
 
 ## Development Principle
 
-This project is being built in stages to understand the security boundaries between authentication, sessions, authorization, account security, and frontend state management.
+The project is built in stages to make the security boundaries clear:
 
-The backend is intentionally being hardened and tested **before** the frontend is built on top of it.
+```text
+Authentication
+      ↓
+Sessions
+      ↓
+Token Rotation
+      ↓
+Authorization
+      ↓
+Backend Testing
+      ↓
+Frontend UI
+      ↓
+Frontend API Integration
+      ↓
+Protected Application
+```
+
+The frontend is intentionally being connected to the backend one feature at a time. This keeps the API client, services, TanStack Query hooks, and UI components separated and easier to understand.
 
 ## Status
 
-**Current phase: Backend security hardening and testing.**
+**Current phase: Frontend API integration.**
 
-After the security test pass, the project will move to the Next.js frontend and implement the full authentication flow using the finalized API.
+The backend authentication foundation and core session flows are implemented. The React frontend has been built and the signup/email-verification flows are now connected to the API. The next frontend work is signin, authentication state, protected routes, refresh-token handling, sessions, and logout.
