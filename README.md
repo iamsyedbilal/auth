@@ -591,19 +591,6 @@ npm test -- src/test/auth/signup.test.js
 - [ ] Session management integration
 - [ ] Logout integration
 - [ ] Logout-all integration
-- [ ] Role-aware UI
-- [ ] Permission-aware UI
-
-### Deferred Features
-
-These features are intentionally deferred for the current practice project:
-
-- [ ] Forgot password
-- [ ] Reset password
-- [ ] Redis-backed distributed rate limiting
-- [ ] Advanced audit logging
-- [ ] Two-factor authentication
-- [ ] Resource ownership/authorization rules beyond the current RBAC foundation
 
 ## Development Principle
 
