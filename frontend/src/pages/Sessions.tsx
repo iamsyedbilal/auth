@@ -1,4 +1,20 @@
+import { useNavigate } from "react-router";
+import { useAuth } from "../features/auth/hooks/useAuth";
+
 export default function Sessions() {
+  const { logout, logoutAll } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login", { replace: true });
+  };
+
+  const handleLogoutAll = async () => {
+    await logoutAll();
+    navigate("/login", { replace: true });
+  };
+
   return (
     <main>
       <section>
@@ -14,11 +30,13 @@ export default function Sessions() {
             <p>Windows · Chrome</p>
             <span>Active now</span>
           </div>
-
-          <button type="button">Sign out</button>
         </div>
 
-        <button type="button">Sign out of all devices</button>
+        <div>
+          <button onClick={handleLogout}>Sign out</button>
+
+          <button onClick={handleLogoutAll}>Sign out all devices</button>
+        </div>
       </section>
     </main>
   );

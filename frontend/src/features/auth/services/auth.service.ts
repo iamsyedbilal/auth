@@ -44,6 +44,10 @@ export interface User {
   email: string;
 }
 
+export interface SignoutResponse {
+  message: string;
+}
+
 export async function signup(payload: SignupPayload): Promise<SignupResponse> {
   return apiClient<SignupResponse>("/auth/signup", {
     method: "POST",
@@ -79,5 +83,17 @@ export async function signin(payload: SigninPayload): Promise<SigninResponse> {
 export async function getMe(): Promise<User> {
   return apiClient<User>("/auth/me", {
     method: "GET",
+  });
+}
+
+export async function signout(): Promise<SignoutResponse> {
+  return apiClient<SignoutResponse>("/auth/signout", {
+    method: "POST",
+  });
+}
+
+export async function signoutAll(): Promise<SignoutResponse> {
+  return apiClient<SignoutResponse>("/auth/signout-all", {
+    method: "POST",
   });
 }

@@ -1,5 +1,10 @@
 import { createContext, useEffect, useState, type ReactNode } from "react";
-import type { SigninResponse, User } from "../services/auth.service";
+import {
+  signout,
+  signoutAll,
+  type SigninResponse,
+  type User,
+} from "../services/auth.service";
 import {
   clearAccessToken,
   getAccessToken,
@@ -14,7 +19,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (data: SigninResponse) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -49,6 +55,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch {
         clearAccessToken();
+        await signout();
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -65,9 +72,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAccessToken(data.accessToken);
   };
 
-  const logout = () => {
-    setUser(null);
-    clearAccessToken();
+  const logout = async () => {
+    try {
+      await signout();
+    } finally {
+      setUser(null);
+      clearAccessToken();
+    }
+  };
+
+  const logoutAll = async () => {
+    try {
+      await signoutAll();
+    } finally {
+      setUser(null);
+      clearAccessToken();
+    }
   };
 
   return (
@@ -79,6 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading,
         login,
         logout,
+        logoutAll,
       }}
     >
       {children}
