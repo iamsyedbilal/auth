@@ -1,14 +1,14 @@
 import { useGetMe } from "../features/auth/hooks/useGetMe";
 
 export default function Dashboard() {
-  const { data: user, isLoading, isError, error } = useGetMe();
+  const { data: user, isLoading, isError } = useGetMe();
 
   if (isLoading) {
     return <main>Loading...</main>;
   }
 
-  if (isError) {
-    return <main>Error: {error.message}</main>;
+  if (isError || !user) {
+    return <div>Unable to load your account.</div>;
   }
 
   return (

@@ -6,7 +6,7 @@ import {
   setAccessToken,
   subscribeToAccessToken,
 } from "../../../api/tokenStore";
-import { refreshAccessToken } from "../services/token.service";
+import { refreshAccessToken } from "../../../api/apiClient";
 
 interface AuthContextValue {
   user: User | null;
@@ -34,14 +34,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const unsubscribe = subscribeToAccessToken(setAccessTokenState);
 
     async function restoreSession() {
-      if (getAccessToken()) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
-        const data = await refreshAccessToken();
-        setAccessToken(data?.accessToken);
+        const currentToken = getAccessToken();
+
+        if (currentToken) {
+          setIsLoading(false);
+          return;
+        }
+
+        const newAccessToken = await refreshAccessToken();
+
+        if (!newAccessToken) {
+          setUser(null);
+        }
       } catch {
         clearAccessToken();
         setUser(null);

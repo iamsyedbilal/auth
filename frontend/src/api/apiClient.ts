@@ -16,7 +16,10 @@ export async function refreshAccessToken(): Promise<string | null> {
         credentials: "include",
       });
 
-      const data = (await response.json()) as { accessToken?: string };
+      const data = (await response.json()) as {
+        accessToken?: string;
+        message?: string;
+      };
 
       if (!response.ok || !data.accessToken) {
         clearAccessToken();
@@ -52,7 +55,7 @@ async function request(
     ...options,
     credentials: "include",
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 }
 
