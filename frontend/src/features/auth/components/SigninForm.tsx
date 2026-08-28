@@ -3,6 +3,7 @@ import type React from "react";
 import { Link, useNavigate } from "react-router";
 import "./SigninForm.css";
 import { useSignin } from "../hooks/useSignin";
+import { useAuth } from "../hooks/useAuth";
 
 export default function SigninForm() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,7 @@ export default function SigninForm() {
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
   const signinMutation = useSignin();
+  const { login } = useAuth();
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -21,7 +23,9 @@ export default function SigninForm() {
         password,
       },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
+          console.log("Signin response:", data);
+          login(data);
           navigate("/dashboard");
         },
       },

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useState, type ReactNode } from "react";
 import type { SigninResponse } from "../services/auth.service";
 
 interface AuthContextValue {
@@ -44,12 +44,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-
-  return context;
-}
+export { AuthContext };
