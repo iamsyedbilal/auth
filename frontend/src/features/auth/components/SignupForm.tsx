@@ -33,11 +33,15 @@ export default function SignupForm() {
         password,
       },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
           setUsername("");
           setEmail("");
           setPassword("");
-          navigate("/verify-email");
+          navigate("/verify-email", {
+            state: {
+              email: data.email,
+            },
+          });
         },
       },
     );

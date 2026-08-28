@@ -1,16 +1,31 @@
 import { useState } from "react";
 import type React from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import "./SigninForm.css";
+import { useSignin } from "../hooks/useSignin";
 
 export default function SigninForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
+  const signinMutation = useSignin();
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // UI only for now.
+    signinMutation.mutate(
+      {
+        email,
+        password,
+      },
+      {
+        onSuccess: () => {
+          navigate("/dashboard");
+        },
+      },
+    );
   };
 
   return (
@@ -30,6 +45,8 @@ export default function SigninForm() {
             type="email"
             placeholder="you@example.com"
             autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
 
@@ -45,6 +62,8 @@ export default function SigninForm() {
               type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
               autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
 
             <button
@@ -68,8 +87,16 @@ export default function SigninForm() {
           <span>Remember me</span>
         </label>
 
-        <button type="submit" className="signin-form__submit">
-          Sign in
+        {signinMutation.isError && (
+          <p role="alert">{signinMutation.error.message}</p>
+        )}
+
+        <button
+          type="submit"
+          className="signin-form__submit"
+          disabled={signinMutation.isPending}
+        >
+          {signinMutation.isPending ? "Signing in..." : "Sign in"}
         </button>
       </form>
 

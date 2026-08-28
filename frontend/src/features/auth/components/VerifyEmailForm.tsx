@@ -1,15 +1,47 @@
 import { useState } from "react";
 import type React from "react";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
+import { useVerifyEmail } from "../hooks/useVerifyEmail";
+import { useResendVerification } from "../hooks/useResendVerification";
 import "./VerifyEmailForm.css";
+
+interface LocationState {
+  email?: string;
+}
 
 export default function VerifyEmailForm() {
   const [otp, setOtp] = useState("");
 
+  const location = useLocation();
+  const navigate = useNavigate();
+  const verifyMutation = useVerifyEmail();
+  const resendMutation = useResendVerification();
+
+  const email = (location.state as LocationState | null)?.email;
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // UI only for now.
+    if (!email || otp.length !== 6) {
+      return;
+    }
+
+    verifyMutation.mutate(
+      { email, otp },
+      {
+        onSuccess: () => {
+          navigate("/login");
+        },
+      },
+    );
+  };
+
+  const handleResend = () => {
+    if (!email) {
+      return;
+    }
+
+    resendMutation.mutate({ email });
   };
 
   const handleOtpChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,20 +82,39 @@ export default function VerifyEmailForm() {
             Enter the 6-digit code from your email.
           </span>
         </div>
-
+        {verifyMutation.isError && (
+          <p className="verify-email-form__error" role="alert">
+            {verifyMutation.error.message}
+          </p>
+        )}
+        {resendMutation.isSuccess && (
+          <p className="verify-email-form__success" role="status">
+            {resendMutation.data.message}
+          </p>
+        )}
+        {resendMutation.isError && (
+          <p className="verify-email-form__error" role="alert">
+            {resendMutation.error.message}
+          </p>
+        )}
         <button
           type="submit"
           className="verify-email-form__submit"
-          disabled={otp.length !== 6}
+          disabled={!email || otp.length !== 6 || verifyMutation.isPending}
         >
-          Verify email
+          {verifyMutation.isPending ? "Verifying..." : "Verify email"}{" "}
         </button>
       </form>
 
       <div className="verify-email-form__resend">
         <span>Didn't receive the code?</span>
-
-        <button type="button">Resend code</button>
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={!email || resendMutation.isPending}
+        >
+          {resendMutation.isPending ? "Sending..." : "Resend code"}{" "}
+        </button>{" "}
       </div>
 
       <div className="verify-email-form__back">
