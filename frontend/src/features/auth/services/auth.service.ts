@@ -53,7 +53,7 @@ export interface Session {
   userAgent?: string;
   ipAddress?: string;
   createdAt: string;
-  lastActivityAt?: string;
+  lastUsedAt?: string;
   expiresAt: string;
   revokedAt?: string | null;
 }

@@ -20,7 +20,7 @@ function Sessions() {
   }
 
   const sessions = data?.sessions ?? [];
-
+  console.log(sessions);
   return (
     <main>
       <section>
@@ -41,8 +41,8 @@ function Sessions() {
 
                   <p>
                     Last activity:{" "}
-                    {session.lastActivityAt
-                      ? new Date(session.lastActivityAt).toLocaleString()
+                    {session.lastUsedAt
+                      ? new Date(session.lastUsedAt).toLocaleString()
                       : "Unknown"}
                   </p>
 
