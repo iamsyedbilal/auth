@@ -2,16 +2,12 @@ const API_BASE_URL = "http://localhost:3000/api";
 
 import { clearAccessToken, getAccessToken, setAccessToken } from "./tokenStore";
 
-type ApiRequestOptions = Omit<RequestInit, "body"> & {
-  body?: unknown;
-};
+type ApiRequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
 
 let refreshPromise: Promise<string | null> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
-  if (refreshPromise) {
-    return refreshPromise;
-  }
+export async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
     try {
@@ -20,14 +16,9 @@ async function refreshAccessToken(): Promise<string | null> {
         credentials: "include",
       });
 
-      if (!response.ok) {
-        clearAccessToken();
-        return null;
-      }
-
       const data = (await response.json()) as { accessToken?: string };
 
-      if (!data.accessToken) {
+      if (!response.ok || !data.accessToken) {
         clearAccessToken();
         return null;
       }
