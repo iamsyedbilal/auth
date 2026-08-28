@@ -1,43 +1,71 @@
-import { useNavigate } from "react-router";
-import { useAuth } from "../features/auth/hooks/useAuth";
+import { useSessions } from "../features/auth/hooks/useSessions";
+import { useRevokeSession } from "../features/auth/hooks/useRevokeSession";
 
-export default function Sessions() {
-  const { logout, logoutAll } = useAuth();
-  const navigate = useNavigate();
+function Sessions() {
+  const { data, isLoading, isError, error } = useSessions();
 
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login", { replace: true });
-  };
+  const revokeMutation = useRevokeSession();
 
-  const handleLogoutAll = async () => {
-    await logoutAll();
-    navigate("/login", { replace: true });
-  };
+  if (isLoading) {
+    return <div>Loading sessions...</div>;
+  }
+
+  if (isError) {
+    return (
+      <div>
+        <p>Unable to load sessions.</p>
+        <p>{error.message}</p>
+      </div>
+    );
+  }
+
+  const sessions = data?.sessions ?? [];
+
+  console.log(sessions);
 
   return (
     <main>
       <section>
-        <p>Account</p>
-
-        <h1>Active sessions</h1>
+        <h1>Active Sessions</h1>
 
         <p>Manage the devices currently signed in to your account.</p>
 
-        <div>
+        {sessions.length === 0 ? (
+          <p>No active sessions found.</p>
+        ) : (
           <div>
-            <strong>Current device</strong>
-            <p>Windows · Chrome</p>
-            <span>Active now</span>
+            {sessions.map((session) => (
+              <article key={session.id}>
+                <div>
+                  <h2>Session</h2>
+
+                  <p>Created: {new Date(session.createdAt).toLocaleString()}</p>
+
+                  <p>
+                    Last activity:{" "}
+                    {session.lastActivityAt
+                      ? new Date(session.lastActivityAt).toLocaleString()
+                      : "Unknown"}
+                  </p>
+
+                  {session.userAgent && <p>Device: {session.userAgent}</p>}
+
+                  {session.ipAddress && <p>IP: {session.ipAddress}</p>}
+                </div>
+
+                <button
+                  onClick={() => revokeMutation.mutate(session.id)}
+                  disabled={revokeMutation.isPending}
+                >
+                  {revokeMutation.isPending ? "Revoking..." : "Sign out"}
+                </button>
+              </article>
+            ))}
           </div>
-        </div>
-
-        <div>
-          <button onClick={handleLogout}>Sign out</button>
-
-          <button onClick={handleLogoutAll}>Sign out all devices</button>
-        </div>
+        )}
       </section>
     </main>
   );
 }
+
+export default Sessions;

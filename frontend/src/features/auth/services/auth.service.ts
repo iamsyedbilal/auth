@@ -48,6 +48,20 @@ export interface SignoutResponse {
   message: string;
 }
 
+export interface Session {
+  id: string;
+  userAgent?: string;
+  ipAddress?: string;
+  createdAt: string;
+  lastActivityAt?: string;
+  expiresAt: string;
+  revokedAt?: string | null;
+}
+
+export interface SessionsResponse {
+  sessions: Session[];
+}
+
 export async function signup(payload: SignupPayload): Promise<SignupResponse> {
   return apiClient<SignupResponse>("/auth/signup", {
     method: "POST",
@@ -95,5 +109,19 @@ export async function signout(): Promise<SignoutResponse> {
 export async function signoutAll(): Promise<SignoutResponse> {
   return apiClient<SignoutResponse>("/auth/signout-all", {
     method: "POST",
+  });
+}
+
+export async function getSessions(): Promise<SessionsResponse> {
+  return apiClient<SessionsResponse>("/auth/sessions", {
+    method: "GET",
+  });
+}
+
+export async function revokeSession(
+  sessionId: string,
+): Promise<{ message: string }> {
+  return apiClient<{ message: string }>(`/auth/sessions/${sessionId}`, {
+    method: "DELETE",
   });
 }
